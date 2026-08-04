@@ -24,6 +24,9 @@ public sealed class RegistryPolEngine
 
     public RegistryPolEngine(RollingLog log) => _log = log;
 
+    // Composite key identifying a Registry.pol record (subkey path + value name).
+    private static string Key(string subKey, string valueName) => $"{subKey}|{valueName}";
+
     public List<PregRecord> ReadMachinePol() => ReadPol(MachineRegistryPol);
     public List<PregRecord> ReadUserPol() => ReadPol(UserRegistryPol);
 

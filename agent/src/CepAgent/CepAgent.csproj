@@ -12,8 +12,9 @@
     <RootNamespace>CepAgent</RootNamespace>
     <AssemblyName>CepAgent</AssemblyName>
     <OutputType>Exe</OutputType>
-    <!-- Server 2016 / Windows 10 1607 is the floor; no APIs newer than that. -->
-    <SupportedOSPlatformVersion>10.0.14393.0</SupportedOSPlatformVersion>
+    <!-- net8.0-windows targets the classic Win32 (windows7.0) API surface, which
+         is a strict subset of what Server 2016 offers, so we use no API newer
+         than Server 2016 and keep broad compatibility. -->
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <InvariantGlobalization>true</InvariantGlobalization>

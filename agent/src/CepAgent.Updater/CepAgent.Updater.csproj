@@ -11,7 +11,6 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>CepAgent.Updater</RootNamespace>
     <AssemblyName>CepAgent.Updater</AssemblyName>
-    <SupportedOSPlatformVersion>10.0.14393.0</SupportedOSPlatformVersion>
     <PublishSingleFile>true</PublishSingleFile>
     <InvariantGlobalization>true</InvariantGlobalization>
     <Version>1.0.0</Version>
