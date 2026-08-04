@@ -1,0 +1,412 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Portal users (MSP staff)
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  TECH
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  role         UserRole @default(TECH)
+  disabled     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Tenants (MSP customers)
+// ---------------------------------------------------------------------------
+
+model Tenant {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  enrollToken       String   @unique
+  // Tenant-wide enforcement kill switch: when true no agent in this tenant writes anything.
+  enforcementPaused Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  computers   Computer[]
+  groups      ComputerGroup[]
+  policies    Policy[]
+  assignments Assignment[]
+
+  @@map("tenants")
+}
+
+// ---------------------------------------------------------------------------
+// Computers (enrolled agents)
+// ---------------------------------------------------------------------------
+
+enum ComputerStatus {
+  ACTIVE
+  DECOMMISSIONED
+}
+
+model Computer {
+  id                String         @id @default(cuid())
+  tenantId          String
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  hostname          String
+  ipAddresses       String[]       @default([])
+  osName            String         @default("")
+  osVersion         String         @default("")
+  osBuild           String         @default("")
+  agentVersion      String         @default("")
+  lastSeenAt        DateTime?
+  enforcementPaused Boolean        @default(false)
+  status            ComputerStatus @default(ACTIVE)
+  deviceTokenHash   String?        @unique
+  // Policy hash last reported by the agent (used to detect stale policy).
+  reportedPolicyHash String        @default("")
+  firstEnforcedAt   DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  groupMemberships GroupMember[]
+  assignments      Assignment[]
+  snapshots        Snapshot[]
+  auditResults     AuditResult[]
+  driftEvents      DriftEvent[]
+  commands         Command[]
+
+  @@index([tenantId])
+  @@map("computers")
+}
+
+model ComputerGroup {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String   @default("")
+  createdAt   DateTime @default(now())
+
+  members     GroupMember[]
+  assignments Assignment[]
+
+  @@unique([tenantId, name])
+  @@map("computer_groups")
+}
+
+model GroupMember {
+  groupId    String
+  group      ComputerGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  computerId String
+  computer   Computer      @relation(fields: [computerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+
+  @@id([groupId, computerId])
+  @@map("group_members")
+}
+
+// ---------------------------------------------------------------------------
+// Settings catalog (master library of GPO settings)
+// ---------------------------------------------------------------------------
+
+enum Mechanism {
+  REGISTRY_POL
+  SECEDIT
+  AUDITPOL
+}
+
+enum SettingScope {
+  MACHINE
+  USER
+}
+
+model Setting {
+  id       String @id @default(cuid())
+  // Stable machine-readable key, e.g. "sec_lsa_limitblankpassworduse". Agents and
+  // policies reference this key so catalog rows can be re-seeded without breaking refs.
+  key      String @unique
+  category String
+  name     String
+  // Plain-English "what it does".
+  description String @default("")
+  // Plain-English "what it can break".
+  riskNote    String @default("")
+
+  mechanism Mechanism
+  scope     SettingScope @default(MACHINE)
+
+  // mechanism = REGISTRY_POL
+  registryHive      String? // HKLM | HKCU
+  registryKey       String? // e.g. Software\Policies\Microsoft\Windows\...
+  registryValueName String?
+  registryValueType String? // REG_DWORD | REG_SZ | REG_EXPAND_SZ | REG_MULTI_SZ | REG_BINARY | REG_QWORD
+
+  // mechanism = SECEDIT
+  seceditArea String? // System Access | Privilege Rights | Registry Values | ...
+  seceditKey  String? // e.g. MinimumPasswordLength or SeNetworkLogonRight or MACHINE\...
+
+  // mechanism = AUDITPOL
+  auditSubcategory String?
+  auditGuid        String? // {0CCE923F-69AE-11D9-BED3-505054503030}
+
+  // Value metadata
+  dataType      String @default("dword") // dword | string | multi | qword | binary
+  allowedValues Json?  // e.g. [{"value":0,"label":"Disabled"},{"value":1,"label":"Enabled"}]
+  defaultValue  Json   // recommended baseline value
+
+  minBuild         Int?    // minimum Windows build this applies to (e.g. 14393 = Server 2016 / Win10 1607)
+  cisRef           String? // CIS Benchmark section reference, the mapping backbone
+  isSeeded         Boolean @default(false)
+  needsDescription Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  policySettings PolicySetting[]
+  controlMaps    SettingControlMap[]
+  auditResults   AuditResult[]
+  driftEvents    DriftEvent[]
+
+  @@index([category])
+  @@index([mechanism])
+  @@map("settings_catalog")
+}
+
+// ---------------------------------------------------------------------------
+// Compliance frameworks
+// ---------------------------------------------------------------------------
+
+model Framework {
+  id          String @id @default(cuid())
+  key         String @unique // cis | cmmc_l1 | cmmc_l2 | nist_800_171 | nist_800_53 | hipaa | soc2
+  name        String
+  version     String @default("")
+  description String @default("")
+
+  controls FrameworkControl[]
+
+  @@map("frameworks")
+}
+
+model FrameworkControl {
+  id          String    @id @default(cuid())
+  frameworkId String
+  framework   Framework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  controlId   String // e.g. "AC.L2-3.1.1", "3.1.1", "AC-2", "164.312(a)(1)", "CC6.1"
+  title       String
+  description String    @default("")
+
+  settingMaps SettingControlMap[]
+
+  @@unique([frameworkId, controlId])
+  @@map("framework_controls")
+}
+
+enum MapConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model SettingControlMap {
+  id        String           @id @default(cuid())
+  settingId String
+  setting   Setting          @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  controlId String
+  control   FrameworkControl @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  // Per-framework recommended value for this setting (falls back to setting.defaultValue).
+  recommendedValue Json?
+  confidence       MapConfidence @default(MEDIUM)
+
+  @@unique([settingId, controlId])
+  @@map("setting_control_map")
+}
+
+// ---------------------------------------------------------------------------
+// Policies
+// ---------------------------------------------------------------------------
+
+enum PolicyType {
+  GLOBAL
+  SUB
+}
+
+model Policy {
+  id           String     @id @default(cuid())
+  type         PolicyType
+  tenantId     String? // null for GLOBAL policies
+  tenant       Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String     @default("")
+  isSeeded     Boolean    @default(false)
+  seedKey      String?    @unique // stable key for seeded global policies ("reset to seed" target)
+  clonedFromId String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  settings    PolicySetting[]
+  assignments Assignment[]
+
+  @@index([tenantId])
+  @@map("policies")
+}
+
+model PolicySetting {
+  id        String  @id @default(cuid())
+  policyId  String
+  policy    Policy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  settingId String
+  setting   Setting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  value     Json
+  enabled   Boolean @default(true)
+
+  @@unique([policyId, settingId])
+  @@map("policy_settings")
+}
+
+enum AssignmentScope {
+  TENANT
+  GROUP
+  COMPUTER
+}
+
+model Assignment {
+  id         String          @id @default(cuid())
+  tenantId   String
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  policyId   String
+  policy     Policy          @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  scope      AssignmentScope
+  groupId    String?
+  group      ComputerGroup?  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  computerId String?
+  computer   Computer?       @relation(fields: [computerId], references: [id], onDelete: Cascade)
+  // Conflict resolution between two GROUP assignments covering the same computer:
+  // the higher priority wins (documented in the UI).
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Snapshots, audit, drift
+// ---------------------------------------------------------------------------
+
+model Snapshot {
+  id         String   @id @default(cuid())
+  computerId String
+  computer   Computer @relation(fields: [computerId], references: [id], onDelete: Cascade)
+  blob       Bytes
+  sizeBytes  Int
+  sha256     String
+  note       String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([computerId])
+  @@map("snapshots")
+}
+
+model AuditResult {
+  id            String   @id @default(cuid())
+  computerId    String
+  computer      Computer @relation(fields: [computerId], references: [id], onDelete: Cascade)
+  settingId     String
+  setting       Setting  @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  currentValue  Json?
+  requiredValue Json?
+  compliant     Boolean
+  checkedAt     DateTime
+
+  @@unique([computerId, settingId])
+  @@index([computerId, compliant])
+  @@map("audit_results")
+}
+
+model DriftEvent {
+  id           String   @id @default(cuid())
+  computerId   String
+  computer     Computer @relation(fields: [computerId], references: [id], onDelete: Cascade)
+  settingId    String
+  setting      Setting  @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  beforeValue  Json?
+  afterValue   Json?
+  remediatedAt DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([computerId])
+  @@map("drift_events")
+}
+
+// ---------------------------------------------------------------------------
+// Commands
+// ---------------------------------------------------------------------------
+
+enum CommandType {
+  APPLY_POLICY
+  REAUDIT
+  UPDATE_NOW
+  UNINSTALL
+  ROLLBACK
+  PAUSE_ENFORCEMENT
+  RESUME_ENFORCEMENT
+}
+
+enum CommandStatus {
+  PENDING
+  DELIVERED
+  ACKED
+  FAILED
+}
+
+model Command {
+  id          String        @id @default(cuid())
+  computerId  String
+  computer    Computer      @relation(fields: [computerId], references: [id], onDelete: Cascade)
+  type        CommandType
+  // e.g. { "mode": "revert" } for UNINSTALL, { "snapshotId": "..." } for ROLLBACK
+  payload     Json?
+  status      CommandStatus @default(PENDING)
+  error       String        @default("")
+  createdBy   String        @default("")
+  createdAt   DateTime      @default(now())
+  deliveredAt DateTime?
+  ackedAt     DateTime?
+
+  @@index([computerId, status])
+  @@map("commands")
+}
+
+// ---------------------------------------------------------------------------
+// Agent releases
+// ---------------------------------------------------------------------------
+
+enum ReleaseSource {
+  GITHUB_URL
+  UPLOADED
+}
+
+model AgentRelease {
+  id        String        @id @default(cuid())
+  version   String        @unique
+  source    ReleaseSource
+  url       String? // GitHub asset URL when source = GITHUB_URL
+  msiBlob   Bytes? // uploaded MSI when source = UPLOADED (Railway disk is ephemeral)
+  sha256    String
+  notes     String        @default("")
+  isLatest  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  @@map("agent_releases")
+}

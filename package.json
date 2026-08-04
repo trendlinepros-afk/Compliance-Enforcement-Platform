@@ -1,0 +1,15 @@
+{
+  "name": "compliance-enforcement-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MSP GPO compliance platform — portal (Railway) + Windows agent (MSI).",
+  "scripts": {
+    "server:dev": "npm --prefix portal/server run dev",
+    "server:test": "npm --prefix portal/server test",
+    "server:build": "npm --prefix portal/server run build",
+    "client:dev": "npm --prefix portal/client run dev",
+    "client:build": "npm --prefix portal/client run build",
+    "install:all": "npm --prefix portal/server install && npm --prefix portal/client install",
+    "agent:test": "dotnet test agent/tests/CepAgent.Tests/CepAgent.Tests.csproj"
+  }
+}

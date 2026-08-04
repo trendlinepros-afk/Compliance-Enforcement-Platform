@@ -1,0 +1,27 @@
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/
+
+# .NET
+bin/
+obj/
+publish/
+*.user
+.vs/
+
+# WiX build output
+installer/out/
+*.wixpdb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local scratch
+*.log
+.pgdata/

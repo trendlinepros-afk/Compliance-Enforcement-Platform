@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Harvests every file from the self-contained publish output EXCEPT CepAgent.exe
+  (installed by ServiceComponent as the service key file). The WiX v4 <Files>
+  element auto-generates one component per file — no heat step required.
+
+  This includes CepAgent.Updater.exe, the .NET runtime DLLs bundled by the
+  self-contained single-file publish, appsettings.json, etc.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <ComponentGroup Id="AgentFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(PublishDir)\**" Exclude="$(PublishDir)\CepAgent.exe" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

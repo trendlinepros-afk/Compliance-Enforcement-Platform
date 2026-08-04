@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <!-- net8.0-windows resolves Registry / ServiceProcess / DPAPI at compile time
+         and declares the platform so the compatibility analyzer is satisfied. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>CepAgent</RootNamespace>
+    <AssemblyName>CepAgent</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <!-- Server 2016 / Windows 10 1607 is the floor; no APIs newer than that. -->
+    <SupportedOSPlatformVersion>10.0.14393.0</SupportedOSPlatformVersion>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>1.0.0</Version>
+    <Product>CEP Compliance Agent</Product>
+    <Company>Compliance Enforcement Platform</Company>
+    <!-- The classes under Engines/Parsers are shared with the test project. -->
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

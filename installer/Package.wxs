@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CEP Compliance Agent MSI (WiX v4).
+
+  Properties:
+    SERVERURL   - portal base URL (e.g. https://cep.example.com)
+    ENROLLTOKEN - tenant enrollment token
+
+  Install flow:
+    1. Files laid down under [ProgramFiles64]\CepAgent.
+    2. CepAgent.exe registered as the "CepAgent" Windows service (auto-start).
+    3. A custom action runs `CepAgent.exe configure SERVERURL ENROLLTOKEN`
+       to persist enrollment config to ProgramData before the service starts.
+
+  Uninstall flow:
+    - The service is stopped and removed by ServiceControl/ServiceInstall.
+    - A deferred custom action wipes the ProgramData tree and any authored
+      policy content the agent left behind (belt-and-suspenders: the running
+      agent already does this on the UNINSTALL command, but a bare `msiexec /x`
+      must clean up too).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package Name="CEP Compliance Agent"
+           Manufacturer="Compliance Enforcement Platform"
+           Version="!(bind.FileVersion.CepAgentExe)"
+           UpgradeCode="7E9F2A54-3C1B-4E8D-9A0F-2B6C1D4E5F60"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <SummaryInformation Description="CEP Compliance Agent" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of the CEP Compliance Agent is already installed."
+                  Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Public properties settable from msiexec command line. -->
+    <Property Id="SERVERURL" Secure="yes" />
+    <Property Id="ENROLLTOKEN" Secure="yes" />
+
+    <Feature Id="MainFeature" Title="CEP Compliance Agent" Level="1">
+      <ComponentGroupRef Id="AgentFiles" />
+      <ComponentRef Id="ServiceComponent" />
+    </Feature>
+
+    <!-- Persist enrollment config before the service first starts. -->
+    <CustomAction Id="ConfigureEnrollment"
+                  FileRef="CepAgentExe"
+                  ExeCommand="configure &quot;[SERVERURL]&quot; &quot;[ENROLLTOKEN]&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <!-- Deferred cleanup on uninstall (remove the ProgramData tree the agent
+         created). Deferred custom actions cannot expand MSI directory
+         properties, so we rely on the %ProgramData% environment variable, which
+         is always available to the SYSTEM account running the action. -->
+    <CustomAction Id="CleanupProgramData"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="[SystemFolder]cmd.exe /c rmdir /s /q &quot;%ProgramData%\CepAgent&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="ConfigureEnrollment" Before="StartServices" Condition="NOT Installed" />
+      <Custom Action="CleanupProgramData" After="RemoveFiles" Condition="(REMOVE=&quot;ALL&quot;) AND (NOT UPGRADINGPRODUCTCODE)" />
+    </InstallExecuteSequence>
+
+  </Package>
+
+  <!-- Directory layout. -->
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="CepAgent" />
+    </StandardDirectory>
+  </Fragment>
+
+  <!-- The Windows service component (main executable). -->
+  <Fragment>
+    <Component Id="ServiceComponent" Directory="INSTALLFOLDER" Guid="A7C41E2B-9D53-4F16-8E2A-0C7B3D5A6E91">
+      <File Id="CepAgentExe" Source="$(PublishDir)\CepAgent.exe" KeyPath="yes" />
+
+      <ServiceInstall Id="CepAgentService"
+                      Name="CepAgent"
+                      DisplayName="CEP Compliance Agent"
+                      Description="Continuously audits and enforces GPO compliance policy from the CEP portal."
+                      Type="ownProcess"
+                      Start="auto"
+                      ErrorControl="normal"
+                      Account="LocalSystem"
+                      Vital="yes">
+        <util:ServiceConfig FirstFailureActionType="restart"
+                            SecondFailureActionType="restart"
+                            ThirdFailureActionType="restart"
+                            RestartServiceDelayInSeconds="60"
+                            ResetPeriodInDays="1" />
+      </ServiceInstall>
+
+      <ServiceControl Id="CepAgentServiceControl"
+                      Name="CepAgent"
+                      Start="install"
+                      Stop="both"
+                      Remove="uninstall"
+                      Wait="yes" />
+    </Component>
+  </Fragment>
+
+</Wix>

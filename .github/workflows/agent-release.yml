@@ -1,0 +1,118 @@
+name: Agent Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 1.2.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build MSI (win-x64 self-contained)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $v = "${{ github.event.inputs.version }}"
+          } else {
+            $v = "${{ github.ref_name }}".TrimStart('v')
+          }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Building version $v"
+
+      - name: Run agent unit tests
+        run: dotnet test agent/tests/CepAgent.Tests/CepAgent.Tests.csproj -c Release
+
+      - name: Publish agent (self-contained win-x64)
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          dotnet publish agent/src/CepAgent/CepAgent.csproj `
+            -c Release -r win-x64 --self-contained `
+            -p:Version=$v -o agent/publish
+          dotnet publish agent/src/CepAgent.Updater/CepAgent.Updater.csproj `
+            -c Release -r win-x64 --self-contained `
+            -p:Version=$v -o agent/publish
+
+      - name: Install WiX v4
+        run: dotnet tool install --global wix --version 4.0.5
+
+      - name: Add WiX UI/Util extension
+        run: wix extension add -g WixToolset.Util.wixext/4.0.5
+
+      - name: Build MSI
+        id: msi
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $publish = (Resolve-Path agent/publish).Path
+          New-Item -ItemType Directory -Force -Path installer/out | Out-Null
+          wix build installer/Package.wxs installer/Files.wxs `
+            -ext WixToolset.Util.wixext `
+            -d "PublishDir=$publish" `
+            -o installer/out/cep-agent-$v.msi
+          "msi=installer/out/cep-agent-$v.msi" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Compute SHA-256
+        id: sha
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $msi = "installer/out/cep-agent-$v.msi"
+          $hash = (Get-FileHash -Algorithm SHA256 $msi).Hash.ToLower()
+          "$hash  cep-agent-$v.msi" | Out-File -FilePath "installer/out/cep-agent-$v.msi.sha256" -Encoding ascii
+          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Job summary (for registering in the portal)
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $sha = "${{ steps.sha.outputs.sha256 }}"
+          $asset = "https://github.com/${{ github.repository }}/releases/download/v$v/cep-agent-$v.msi"
+          @"
+          ## CEP Agent $v
+
+          Register this release in the portal (Agent Releases → Register URL):
+
+          | Field | Value |
+          | --- | --- |
+          | Version | ``$v`` |
+          | Asset URL | ``$asset`` |
+          | SHA-256 | ``$sha`` |
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Create GitHub Release with MSI + checksum
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer/out/cep-agent-${{ steps.ver.outputs.version }}.msi
+            installer/out/cep-agent-${{ steps.ver.outputs.version }}.msi.sha256
+          body: |
+            CEP Compliance Agent ${{ steps.ver.outputs.version }}
+
+            **SHA-256:** `${{ steps.sha.outputs.sha256 }}`
+
+            Register in the portal's Agent Releases page using the asset URL and the SHA-256 above.
+
+      - name: Upload MSI artifact (non-tag builds)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cep-agent-msi
+          path: installer/out/*

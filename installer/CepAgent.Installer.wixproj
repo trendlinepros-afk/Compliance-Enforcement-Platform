@@ -1,0 +1,15 @@
+<Project Sdk="WixToolset.Sdk/4.0.5">
+
+  <PropertyGroup>
+    <OutputName>cep-agent</OutputName>
+    <OutputType>Package</OutputType>
+    <!-- Agent publish output is staged here by the release workflow. -->
+    <HarvestDirectory>$(PublishDir)</HarvestDirectory>
+    <DefineConstants>PublishDir=$(PublishDir)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="4.0.5" />
+  </ItemGroup>
+
+</Project>
