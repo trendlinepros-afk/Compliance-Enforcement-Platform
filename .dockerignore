@@ -1,0 +1,16 @@
+# Build context is the repo root; keep node_modules/build output out of the
+# image so COPY layers stay small and never clobber a fresh npm ci.
+**/node_modules
+**/dist
+**/bin
+**/obj
+**/publish
+**/.env
+**/.env.*
+!**/.env.example
+**/coverage
+**/*.log
+.git
+agent
+installer
+docs
