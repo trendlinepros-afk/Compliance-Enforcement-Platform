@@ -21,7 +21,7 @@ export const installerFileSlug = (t: { slug?: string | null; name: string }): st
 
 /** Human-readable name safe to drop into a .cmd/.ps1 echo/comment line. */
 export const installerDisplayName = (name: string): string =>
-  name.replace(/[^\w .\-]+/g, ' ').trim().slice(0, 60) || 'this tenant';
+  name.replace(/[^\w .-]+/g, ' ').trim().slice(0, 60) || 'this tenant';
 
 /** A .cmd that self-elevates, downloads the MSI through the portal, and installs it enrolled. */
 export function buildInstallerCmd(serverUrl: string, token: string, name: string): string {
