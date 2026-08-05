@@ -5,6 +5,7 @@ import { prisma } from '../db';
 import { ah, httpError } from '../lib/errors';
 import { requireAdmin, requireUser } from '../lib/auth';
 import { sha256Hex } from '../lib/tokens';
+import { forceSyncSoon, releaseRepo, syncIfStale, syncReleasesFromGitHub } from '../services/releaseSync';
 
 export const releasesRouter = Router();
 
@@ -25,8 +26,23 @@ releasesRouter.get(
   '/releases',
   requireUser,
   ah(async (_req, res) => {
+    // Pull any newly-published CI builds from GitHub before listing (throttled).
+    await syncIfStale();
     const releases = await prisma.agentRelease.findMany({ select: releaseSelect, orderBy: { createdAt: 'desc' } });
-    res.json(releases);
+    res.json({ releases, sourceRepo: releaseRepo() });
+  }),
+);
+
+// Manual "Sync from GitHub" (admin) — forces an immediate pull of the latest
+// CI-published MSI release.
+releasesRouter.post(
+  '/releases/sync',
+  requireAdmin,
+  ah(async (_req, res) => {
+    forceSyncSoon();
+    const result = await syncReleasesFromGitHub();
+    if (!result.ok) throw httpError(502, `Sync failed: ${result.message ?? 'unknown error'}`);
+    res.json(result);
   }),
 );
 

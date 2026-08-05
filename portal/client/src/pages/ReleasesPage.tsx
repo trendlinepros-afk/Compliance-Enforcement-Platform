@@ -1,12 +1,17 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Upload, Star, Trash2, Download } from 'lucide-react';
+import { Plus, Upload, Star, Trash2, Download, RefreshCw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
 import type { AgentRelease } from '../lib/types';
 import { EmptyState, ErrorBanner, Modal, Spinner } from '../components/ui';
 import { formatDate } from '../lib/format';
+
+interface ReleasesResponse {
+  releases: AgentRelease[];
+  sourceRepo: string;
+}
 
 export function ReleasesPage() {
   const { user } = useAuth();
@@ -15,8 +20,23 @@ export function ReleasesPage() {
   const [registering, setRegistering] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const { data, isLoading, error } = useQuery({ queryKey: ['releases'], queryFn: () => api.get<AgentRelease[]>('/releases') });
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['releases'],
+    queryFn: () => api.get<ReleasesResponse>('/releases'),
+    // Auto-refresh so a CI build that finishes while this page is open appears.
+    refetchInterval: 30_000,
+  });
+  const releases = data?.releases ?? [];
   const invalidate = () => qc.invalidateQueries({ queryKey: ['releases'] });
+
+  const syncMut = useMutation({
+    mutationFn: () => api.post<{ created: number; latestVersion: string | null }>('/releases/sync'),
+    onSuccess: (r) => {
+      invalidate();
+      show(r.created > 0 ? `Synced ${r.created} release(s) — latest ${r.latestVersion}` : 'Up to date with GitHub');
+    },
+    onError: (e) => show(e instanceof Error ? e.message : 'Failed', 'error'),
+  });
 
   const markLatestMut = useMutation({
     mutationFn: (id: string) => api.patch(`/releases/${id}`, { isLatest: true }),
@@ -35,12 +55,17 @@ export function ReleasesPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-100">Agent releases</h1>
           <p className="text-sm text-slate-500">
-            Register a release by GitHub asset URL + SHA-256, or upload an MSI directly (stored in Postgres). The portal proxies
-            downloads at <code className="text-slate-400">/api/agent/msi/:version</code>, so agents only ever hit the portal URL.
+            Releases published by CI are pulled in automatically from{' '}
+            <code className="text-slate-400">{data?.sourceRepo ?? 'GitHub'}</code> — no manual step needed. You can also register a
+            URL or upload an MSI directly. The portal proxies downloads at{' '}
+            <code className="text-slate-400">/api/agent/msi/:version</code>, so agents only ever hit the portal URL.
           </p>
         </div>
         {user?.role === 'ADMIN' && (
           <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+              <RefreshCw size={14} className={syncMut.isPending ? 'animate-spin' : ''} /> Sync from GitHub
+            </button>
             <button className="btn-secondary" onClick={() => setUploading(true)}>
               <Upload size={14} /> Upload MSI
             </button>
@@ -55,7 +80,7 @@ export function ReleasesPage() {
         <Spinner />
       ) : error ? (
         <ErrorBanner error={error} />
-      ) : data && data.length > 0 ? (
+      ) : releases.length > 0 ? (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[800px]">
             <thead className="border-b border-ink-800 bg-ink-850">
@@ -69,7 +94,7 @@ export function ReleasesPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
+              {releases.map((r) => (
                 <tr key={r.id} className="border-b border-ink-850 last:border-0">
                   <td className="td font-mono font-medium text-slate-100">{r.version}</td>
                   <td className="td">
@@ -102,7 +127,10 @@ export function ReleasesPage() {
           </table>
         </div>
       ) : (
-        <EmptyState>No releases registered. Register one from a GitHub Release asset, or upload an MSI directly.</EmptyState>
+        <EmptyState>
+          No releases yet. Push a <code className="text-slate-400">v*</code> tag to trigger the CI build — the published MSI is
+          pulled in here automatically. Or click <b>Sync from GitHub</b>, register a URL, or upload an MSI.
+        </EmptyState>
       )}
 
       {registering && <RegisterModal onClose={() => setRegistering(false)} onDone={invalidate} />}

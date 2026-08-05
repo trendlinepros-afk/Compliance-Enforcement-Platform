@@ -6,7 +6,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { ah, httpError } from '../lib/errors';
 import { requireDevice, requireUser } from '../lib/auth';
-import { hashDeviceToken, randomToken, sha256Hex } from '../lib/tokens';
+import { hashDeviceToken, msiFetchHeaders, randomToken, sha256Hex } from '../lib/tokens';
 import { config } from '../config';
 import { getEffectiveDocument, pruneStaleAuditResults } from '../services/computerPolicy';
 
@@ -423,7 +423,7 @@ agentRouter.get(
       return;
     }
     if (release.source === 'GITHUB_URL' && release.url) {
-      const upstream = await fetch(release.url, { redirect: 'follow' });
+      const upstream = await fetch(release.url, { redirect: 'follow', headers: msiFetchHeaders() });
       if (!upstream.ok || !upstream.body) {
         throw httpError(502, `Upstream download failed (${upstream.status})`);
       }

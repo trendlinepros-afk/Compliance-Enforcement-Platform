@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../db';
 import { ah, httpError } from '../lib/errors';
+import { msiFetchHeaders } from '../lib/tokens';
 
 /**
  * Public enrollment convenience endpoints used by the deploy one-liner:
@@ -36,7 +37,7 @@ enrollRouter.get(
       return;
     }
     if (release.source === 'GITHUB_URL' && release.url) {
-      const upstream = await fetch(release.url, { redirect: 'follow' });
+      const upstream = await fetch(release.url, { redirect: 'follow', headers: msiFetchHeaders() });
       if (!upstream.ok || !upstream.body) throw httpError(502, `Upstream download failed (${upstream.status})`);
       const reader = upstream.body.getReader();
       for (;;) {
