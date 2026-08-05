@@ -96,10 +96,16 @@ jobs:
           | SHA-256 | ``$sha`` |
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
+      # Publish a GitHub Release on a v* tag push OR a manual run. On manual
+      # (workflow_dispatch) runs, tag_name creates the tag at the built commit,
+      # so a release can be cut from the Actions tab without pushing a tag. The
+      # portal auto-syncs whichever release is newest.
       - name: Create GitHub Release with MSI + checksum
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: CEP Agent ${{ steps.ver.outputs.version }}
           files: |
             installer/out/cep-agent-${{ steps.ver.outputs.version }}.msi
             installer/out/cep-agent-${{ steps.ver.outputs.version }}.msi.sha256
@@ -108,10 +114,11 @@ jobs:
 
             **SHA-256:** `${{ steps.sha.outputs.sha256 }}`
 
-            Register in the portal's Agent Releases page using the asset URL and the SHA-256 above.
+            The portal auto-registers this release; you can also register it manually
+            using the asset URL and the SHA-256 above.
 
-      - name: Upload MSI artifact (non-tag builds)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+      - name: Upload MSI artifact (fallback for non-release runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch' }}
         uses: actions/upload-artifact@v4
         with:
           name: cep-agent-msi
