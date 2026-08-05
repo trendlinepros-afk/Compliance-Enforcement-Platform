@@ -1,14 +1,24 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../db';
+import { config } from '../config';
 import { ah, httpError } from '../lib/errors';
 import { msiFetchHeaders } from '../lib/tokens';
+import {
+  buildInstallerCmd,
+  buildInstallerPs1,
+  installerDisplayName,
+  installerFileSlug,
+} from '../lib/installerScripts';
 
 /**
- * Public enrollment convenience endpoints used by the deploy one-liner:
- *   GET /api/enroll/:token/agent.msi  -> latest MSI (enrollment token acts as auth)
- * The PowerShell one-liner downloads from here and passes SERVERURL/ENROLLTOKEN
- * to msiexec, so nothing but the portal URL ever appears on the endpoint.
+ * Public enrollment convenience endpoints used by the deploy panel:
+ *   GET /api/enroll/:token/agent.msi     -> latest MSI (raw; for RMM/GPO/Intune)
+ *   GET /api/enroll/:token/install.cmd   -> one-click installer, token baked in
+ *   GET /api/enroll/:token/install.ps1   -> same, PowerShell flavour
+ * The enrollment token in the path is the tenant's shared secret; the installer
+ * scripts bake SERVERURL + ENROLLTOKEN into the file so running them installs
+ * the agent already enrolled to that tenant — no arguments to remember.
  */
 export const enrollRouter = Router();
 
@@ -18,6 +28,30 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// --- Per-tenant installer scripts (token baked into the file) ---------------
+enrollRouter.get(
+  '/enroll/:token/install.:ext(cmd|ps1)',
+  limiter,
+  ah(async (req, res) => {
+    const tenant = await prisma.tenant.findUnique({ where: { enrollToken: req.params.token } });
+    if (!tenant) throw httpError(404, 'Unknown enrollment token');
+
+    const name = installerDisplayName(tenant.name);
+    const isPs1 = req.params.ext === 'ps1';
+    const script = isPs1
+      ? buildInstallerPs1(config.publicUrl, tenant.enrollToken, name)
+      : buildInstallerCmd(config.publicUrl, tenant.enrollToken, name);
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Install-CEP-${installerFileSlug(tenant)}.${req.params.ext}"`,
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(script);
+  }),
+);
 
 enrollRouter.get(
   '/enroll/:token/agent.msi',

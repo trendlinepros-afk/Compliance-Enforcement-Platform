@@ -13,7 +13,8 @@ export function GlobalPoliciesPage() {
       <div>
         <h1 className="text-lg font-semibold text-slate-100">Global policies</h1>
         <p className="text-sm text-slate-500">
-          MSP-level compliance standards. Browse the full setting list, edit, or clone any of these into a tenant as a sub-policy.
+          Ready-made compliance baselines maintained at the MSP level. Open one to browse its settings, edit it, or clone it into a
+          tenant as a sub-policy. <span className="text-slate-400">Built-in</span> baselines ship with the platform.
         </p>
       </div>
 
@@ -27,7 +28,11 @@ export function GlobalPoliciesPage() {
             <Link key={p.id} to={`/policies/${p.id}`} className="card p-4 transition-colors hover:border-accent-600">
               <div className="mb-2 flex items-start justify-between">
                 <ShieldCheck size={18} className="text-accent-400" />
-                {p.isSeeded && <span className="badge bg-sky-900 text-sky-300">Seeded standard</span>}
+                {p.isSeeded && (
+                  <span className="badge bg-sky-900 text-sky-300" title="Ships with the platform — a ready-made compliance baseline you can clone into any tenant.">
+                    Built-in
+                  </span>
+                )}
               </div>
               <div className="font-medium text-slate-100">{p.name}</div>
               <div className="mt-1 line-clamp-3 text-xs text-slate-500">{p.description}</div>

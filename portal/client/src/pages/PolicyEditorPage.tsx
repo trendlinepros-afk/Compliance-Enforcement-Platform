@@ -68,7 +68,7 @@ export function PolicyEditorPage() {
       qc.invalidateQueries({ queryKey: ['policies', 'global'] });
       if (data?.tenantId) qc.invalidateQueries({ queryKey: ['policies', data.tenantId] });
       setConfirmReset(false);
-      show('Policy reset to seed');
+      show('Policy reset to default');
     },
     onError: (e) => show(e instanceof Error ? e.message : 'Failed', 'error'),
   });
@@ -112,7 +112,11 @@ export function PolicyEditorPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold text-slate-100">{data.name}</h1>
             <span className="badge bg-ink-700 text-slate-300">{data.type}</span>
-            {data.isSeeded && <span className="badge bg-sky-900 text-sky-300">Seeded standard</span>}
+            {data.isSeeded && (
+              <span className="badge bg-sky-900 text-sky-300" title="Ships with the platform — a ready-made compliance baseline.">
+                Built-in
+              </span>
+            )}
           </div>
           {data.description && <p className="mt-1 max-w-2xl text-sm text-slate-500">{data.description}</p>}
         </div>
@@ -120,7 +124,7 @@ export function PolicyEditorPage() {
           <div className="flex gap-2">
             {data.isSeeded && data.seedKey && (
               <button className="btn-secondary" onClick={() => setConfirmReset(true)}>
-                <RotateCcw size={14} /> Reset to seed
+                <RotateCcw size={14} /> Reset to default
               </button>
             )}
             <button className="btn-secondary" onClick={() => setPicking(true)}>
@@ -195,9 +199,9 @@ export function PolicyEditorPage() {
 
       {confirmReset && (
         <ConfirmDialog
-          title="Reset to seed"
-          message="Discard all edits and restore this policy to its seeded default settings and values?"
-          confirmLabel="Reset to seed"
+          title="Reset to default"
+          message="Discard all edits and restore this policy to its built-in default settings and values?"
+          confirmLabel="Reset to default"
           danger
           onCancel={() => setConfirmReset(false)}
           onConfirm={() => resetMut.mutate()}

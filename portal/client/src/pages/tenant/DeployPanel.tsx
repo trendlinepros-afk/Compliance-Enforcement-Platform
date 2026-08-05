@@ -43,8 +43,9 @@ export function DeployPanel({ tenant }: { tenant: Tenant }) {
         )}
       </div>
       <p className="mb-2 text-xs text-slate-500">
-        Copy-paste this into an elevated PowerShell on the target machine. It downloads the MSI from the portal and installs it
-        pre-enrolled to <b className="text-slate-300">{tenant.name}</b>.
+        Everything here has <b className="text-slate-300">{tenant.name}</b>&apos;s enrollment token baked in. Pick whichever fits:
+        paste the one-liner into an elevated PowerShell, or download the ready-to-run installer and launch it on the target machine
+        (approve the admin prompt, or push it through your RMM).
       </p>
       <div className="relative">
         <pre className="max-h-32 overflow-auto rounded bg-ink-950 p-3 pr-10 font-mono text-xs text-slate-300">{oneLiner}</pre>
@@ -53,12 +54,22 @@ export function DeployPanel({ tenant }: { tenant: Tenant }) {
         </button>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <a className="btn-secondary" href={`/api/enroll/${token}/agent.msi`}>
-          <Download size={14} /> Download MSI
+        <a className="btn-primary" href={`/api/enroll/${token}/install.cmd`} download>
+          <Download size={14} /> Download installer
         </a>
-        <div className="font-mono text-xs text-slate-500">
-          Enrollment token: <span className="text-slate-400">{token}</span>
-        </div>
+        <a className="btn-secondary" href={`/api/enroll/${token}/install.ps1`} download title="PowerShell installer (token baked in)">
+          <Download size={14} /> .ps1
+        </a>
+        <a className="btn-ghost text-slate-400" href={`/api/enroll/${token}/agent.msi`} download title="Raw MSI for RMM / Intune / GPO deployment (pass SERVERURL + ENROLLTOKEN yourself)">
+          MSI only
+        </a>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">
+        The installer is a one-click <code className="text-slate-400">.cmd</code> that self-elevates, pulls the MSI, and enrolls to{' '}
+        <b className="text-slate-300">{tenant.name}</b>. Your browser may warn about running a downloaded script — that&apos;s expected.
+      </p>
+      <div className="mt-2 font-mono text-xs text-slate-500">
+        Enrollment token: <span className="text-slate-400">{token}</span>
       </div>
     </div>
   );

@@ -44,36 +44,38 @@
      every existing badge/banner stays legible on a light background. ---- */
   :root[data-theme='light'] {
     color-scheme: light;
-    --ink-950: 238 242 247;  /* page background */
+    --ink-950: 231 237 246;  /* page background — soft cool blue-gray so white cards pop */
     --ink-900: 255 255 255;  /* cards / sidebar */
-    --ink-850: 244 247 251;  /* table headers / hover */
-    --ink-800: 226 232 240;  /* borders + subtle fills */
-    --ink-700: 203 213 225;  /* secondary buttons / input borders */
-    --ink-600: 180 192 206;  /* button hover */
-    --ink-500: 148 163 184;
+    --ink-850: 238 243 250;  /* table headers / hover */
+    --ink-800: 205 215 230;  /* borders + subtle fills — deeper for card definition */
+    --ink-700: 183 195 214;  /* secondary buttons / input borders */
+    --ink-600: 155 169 191;  /* button hover */
+    --ink-500: 126 141 165;
 
     --slate-100: 15 23 42;   /* headings (darkest) */
-    --slate-200: 30 41 59;   /* body text */
-    --slate-300: 51 65 85;   /* secondary text */
-    --slate-400: 71 85 105;  /* muted text */
-    --slate-500: 100 116 139;
-    --slate-600: 148 163 184; /* faint text */
-    --slate-700: 203 213 225; /* neutral chip bg */
+    --slate-200: 28 39 58;   /* body text */
+    --slate-300: 47 61 84;   /* secondary text */
+    --slate-400: 66 80 102;  /* muted text */
+    --slate-500: 85 99 122;  /* darker than before — was washed out */
+    --slate-600: 108 122 145;/* faint text — now actually readable */
+    --slate-700: 201 211 224;/* neutral chip bg */
 
-    --accent-300: 3 105 161; /* links/icons darker for contrast on white */
-    --accent-400: 2 132 199;
+    --accent-300: 3 105 161; /* link/icon hover (darker) */
+    --accent-400: 6 145 178; /* base brand cyan — vivid on white */
 
-    --emerald-300: 4 120 87; --emerald-400: 5 150 105; --emerald-800: 167 243 208; --emerald-900: 209 250 229; --emerald-950: 236 253 245;
-    --amber-300: 180 83 9; --amber-400: 217 119 6; --amber-800: 253 230 138; --amber-900: 254 243 199; --amber-950: 255 251 235;
-    --cyan-300: 14 116 144; --cyan-400: 8 145 178; --cyan-800: 165 243 252; --cyan-900: 207 250 254; --cyan-950: 236 254 255;
-    --fuchsia-300: 162 28 175; --fuchsia-400: 192 38 211; --fuchsia-800: 245 208 254; --fuchsia-900: 250 232 255; --fuchsia-950: 253 244 255;
-    --indigo-300: 67 56 202; --indigo-400: 79 70 229; --indigo-800: 199 210 254; --indigo-900: 224 231 255; --indigo-950: 238 242 255;
-    --red-300: 185 28 28; --red-400: 220 38 38; --red-800: 254 202 202; --red-900: 254 226 226; --red-950: 254 242 242;
-    --rose-300: 190 18 60; --rose-400: 225 29 72; --rose-800: 254 205 211; --rose-900: 255 228 230; --rose-950: 255 241 242;
-    --sky-300: 3 105 161; --sky-400: 2 132 199; --sky-800: 186 230 253; --sky-900: 224 242 254; --sky-950: 240 249 255;
-    --teal-300: 15 118 110; --teal-400: 13 148 136; --teal-800: 153 246 228; --teal-900: 204 251 241; --teal-950: 240 253 250;
-    --violet-300: 109 40 217; --violet-400: 124 58 237; --violet-800: 221 214 254; --violet-900: 237 233 254; --violet-950: 245 243 255;
-    --lime-400: 101 163 13;
+    /* Chip/status ramp shifted one step deeper (bg 100->200, border 200->300,
+       banner 50->100) for more color, keeping the dark -300/-400 text shades. */
+    --emerald-300: 4 108 78; --emerald-400: 4 133 92; --emerald-800: 110 231 183; --emerald-900: 167 243 208; --emerald-950: 209 250 229;
+    --amber-300: 154 71 8; --amber-400: 190 104 5; --amber-800: 252 211 77; --amber-900: 253 230 138; --amber-950: 254 243 199;
+    --cyan-300: 14 116 144; --cyan-400: 8 145 178; --cyan-800: 103 232 249; --cyan-900: 165 243 252; --cyan-950: 207 250 254;
+    --fuchsia-300: 145 24 156; --fuchsia-400: 174 34 194; --fuchsia-800: 240 171 252; --fuchsia-900: 245 208 254; --fuchsia-950: 250 232 255;
+    --indigo-300: 61 51 184; --indigo-400: 79 70 229; --indigo-800: 165 180 252; --indigo-900: 199 210 254; --indigo-950: 224 231 255;
+    --red-300: 176 27 27; --red-400: 208 36 36; --red-800: 252 165 165; --red-900: 254 202 202; --red-950: 254 226 226;
+    --rose-300: 179 17 57; --rose-400: 214 28 68; --rose-800: 253 164 175; --rose-900: 254 205 211; --rose-950: 255 228 230;
+    --sky-300: 3 105 161; --sky-400: 2 132 199; --sky-800: 125 211 252; --sky-900: 186 230 253; --sky-950: 224 242 254;
+    --teal-300: 13 110 103; --teal-400: 13 148 136; --teal-800: 94 234 212; --teal-900: 153 246 228; --teal-950: 204 251 241;
+    --violet-300: 101 36 201; --violet-400: 124 58 237; --violet-800: 196 181 253; --violet-900: 221 214 254; --violet-950: 237 233 254;
+    --lime-400: 91 148 10;
   }
 
   html,
