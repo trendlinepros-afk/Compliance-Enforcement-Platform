@@ -183,6 +183,20 @@ export interface SnapshotRow {
   computer?: { id: string; hostname: string; status: string };
 }
 
+export type CommandStatus = 'PENDING' | 'DELIVERED' | 'ACKED' | 'FAILED';
+
+export interface CommandRow {
+  id: string;
+  type: CommandType;
+  payload: unknown;
+  status: CommandStatus;
+  error: string;
+  createdBy: string;
+  createdAt: string;
+  deliveredAt: string | null;
+  ackedAt: string | null;
+}
+
 export interface AgentRelease {
   id: string;
   version: string;

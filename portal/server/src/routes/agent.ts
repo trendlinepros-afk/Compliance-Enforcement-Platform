@@ -8,7 +8,7 @@ import { ah, httpError } from '../lib/errors';
 import { requireDevice, requireUser } from '../lib/auth';
 import { hashDeviceToken, randomToken, sha256Hex } from '../lib/tokens';
 import { config } from '../config';
-import { getEffectiveDocument } from '../services/computerPolicy';
+import { getEffectiveDocument, pruneStaleAuditResults } from '../services/computerPolicy';
 
 export const agentRouter = Router();
 
@@ -75,6 +75,13 @@ agentRouter.post(
       lastSeenAt: new Date(),
       deviceTokenHash,
       status: 'ACTIVE' as const,
+      // A fresh install is a clean slate: clear any paused/decommissioned state
+      // and stale first-enforcement/policy markers left on the reused row, so
+      // the reinstalled agent snapshots and enforces from scratch instead of
+      // silently never writing because the previous uninstall/rollback paused it.
+      enforcementPaused: false,
+      firstEnforcedAt: null,
+      reportedPolicyHash: '',
     };
     const computer = existing
       ? await prisma.computer.update({ where: { id: existing.id }, data })
@@ -214,17 +221,9 @@ agentRouter.post(
 
     // Prune stored audit results for settings that have left this computer's
     // effective policy entirely, so the compliance rollup reflects only the
-    // currently-assigned settings.
-    const doc = await getEffectiveDocument(req.computerId!);
-    if (doc.entries.length > 0) {
-      const effectiveKeySet = new Set(doc.entries.map((e) => e.settingKey));
-      const allForComputer = await prisma.auditResult.findMany({
-        where: { computerId: req.computerId! },
-        select: { id: true, setting: { select: { key: true } } },
-      });
-      const staleIds = allForComputer.filter((r) => !effectiveKeySet.has(r.setting.key)).map((r) => r.id);
-      if (staleIds.length) await prisma.auditResult.deleteMany({ where: { id: { in: staleIds } } });
-    }
+    // currently-assigned settings. Runs even when the effective policy is now
+    // empty (all assignments removed) — then every result is stale and pruned.
+    await pruneStaleAuditResults(req.computerId!);
     res.json({ stored, staleKeys: [...staleKeys] });
   }),
 );
@@ -289,8 +288,10 @@ agentRouter.post(
       },
       select: { id: true, sha256: true, sizeBytes: true, createdAt: true },
     });
-    await prisma.computer.update({
-      where: { id: req.computerId! },
+    // Stamp the first-enforcement time once (the snapshot precedes the first
+    // enforcement). updateMany with the null guard makes later snapshots no-ops.
+    await prisma.computer.updateMany({
+      where: { id: req.computerId!, firstEnforcedAt: null },
       data: { firstEnforcedAt: new Date() },
     });
     res.status(201).json(snapshot);

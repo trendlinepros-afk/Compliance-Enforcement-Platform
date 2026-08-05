@@ -51,6 +51,9 @@ export function PolicyEditorPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['policy', policyId] });
+      // The setting count shown on the policy lists changed — refresh them too.
+      qc.invalidateQueries({ queryKey: ['policies', 'global'] });
+      if (data?.tenantId) qc.invalidateQueries({ queryKey: ['policies', data.tenantId] });
       setDirty(false);
       show('Policy saved');
     },
@@ -61,6 +64,9 @@ export function PolicyEditorPage() {
     mutationFn: () => api.post(`/policies/${policyId}/reset-to-seed`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['policy', policyId] });
+      // Reset changes name/description/count shown on the lists too.
+      qc.invalidateQueries({ queryKey: ['policies', 'global'] });
+      if (data?.tenantId) qc.invalidateQueries({ queryKey: ['policies', data.tenantId] });
       setConfirmReset(false);
       show('Policy reset to seed');
     },

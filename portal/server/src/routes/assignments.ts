@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { ah, httpError } from '../lib/errors';
 import { requireUser } from '../lib/auth';
+import { pruneStaleAuditResultsForTenant } from '../services/computerPolicy';
 
 export const assignmentsRouter = Router();
 assignmentsRouter.use(requireUser);
@@ -97,9 +98,13 @@ assignmentsRouter.patch(
 assignmentsRouter.delete(
   '/assignments/:id',
   ah(async (req, res) => {
-    await prisma.assignment.delete({ where: { id: req.params.id } }).catch(() => {
-      throw httpError(404, 'Assignment not found');
-    });
+    const assignment = await prisma.assignment.findUnique({ where: { id: req.params.id }, select: { tenantId: true } });
+    if (!assignment) throw httpError(404, 'Assignment not found');
+    await prisma.assignment.delete({ where: { id: req.params.id } });
+    // Removing an assignment can drop settings from computers' effective policy;
+    // prune their now-orphaned audit results so compliance reflects reality even
+    // for computers whose policy is now empty (the agent stops auditing those).
+    await pruneStaleAuditResultsForTenant(assignment.tenantId);
     res.json({ ok: true });
   }),
 );

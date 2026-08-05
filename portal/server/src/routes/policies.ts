@@ -9,6 +9,17 @@ import { getSeededPolicyDefinition } from '../seed/globalPolicies';
 export const policiesRouter = Router();
 policiesRouter.use(requireUser);
 
+/**
+ * Global (MSP-level) policies are shared across every tenant, so only admins may
+ * create, edit, or delete them. Tenant sub-policies remain editable by techs.
+ * Throws 403 when a non-admin targets a GLOBAL policy.
+ */
+function assertCanMutate(req: { user?: { role: string } }, type: 'GLOBAL' | 'SUB'): void {
+  if (type === 'GLOBAL' && req.user?.role !== 'ADMIN') {
+    throw httpError(403, 'Admin role required to modify a global policy');
+  }
+}
+
 const policyListSelect = {
   id: true,
   type: true,
@@ -53,6 +64,7 @@ policiesRouter.post(
   '/policies',
   ah(async (req, res) => {
     const body = createSchema.parse(req.body);
+    assertCanMutate(req, body.tenantId ? 'SUB' : 'GLOBAL');
     if (body.tenantId) {
       const tenant = await prisma.tenant.findUnique({ where: { id: body.tenantId } });
       if (!tenant) throw httpError(404, 'Tenant not found');
@@ -129,8 +141,10 @@ policiesRouter.patch(
   '/policies/:id',
   ah(async (req, res) => {
     const body = patchSchema.parse(req.body);
-    const policy = await prisma.policy.update({ where: { id: req.params.id }, data: body }).catch(() => null);
-    if (!policy) throw httpError(404, 'Policy not found');
+    const existing = await prisma.policy.findUnique({ where: { id: req.params.id }, select: { type: true } });
+    if (!existing) throw httpError(404, 'Policy not found');
+    assertCanMutate(req, existing.type);
+    const policy = await prisma.policy.update({ where: { id: req.params.id }, data: body });
     res.json(policy);
   }),
 );
@@ -140,6 +154,7 @@ policiesRouter.delete(
   ah(async (req, res) => {
     const policy = await prisma.policy.findUnique({ where: { id: req.params.id } });
     if (!policy) throw httpError(404, 'Policy not found');
+    assertCanMutate(req, policy.type);
     await prisma.policy.delete({ where: { id: policy.id } });
     res.json({ ok: true });
   }),
@@ -164,6 +179,7 @@ policiesRouter.put(
     const body = settingsSchema.parse(req.body);
     const policy = await prisma.policy.findUnique({ where: { id: req.params.id } });
     if (!policy) throw httpError(404, 'Policy not found');
+    assertCanMutate(req, policy.type);
 
     const validSettings = await prisma.setting.findMany({
       where: { id: { in: body.settings.map((s) => s.settingId) } },
@@ -234,6 +250,7 @@ policiesRouter.post(
   ah(async (req, res) => {
     const policy = await prisma.policy.findUnique({ where: { id: req.params.id } });
     if (!policy) throw httpError(404, 'Policy not found');
+    assertCanMutate(req, policy.type);
     if (!policy.isSeeded || !policy.seedKey) throw httpError(400, 'Policy is not a seeded standard');
     const def = await getSeededPolicyDefinition(prisma, policy.seedKey);
     if (!def) throw httpError(400, `No seed definition found for ${policy.seedKey}`);

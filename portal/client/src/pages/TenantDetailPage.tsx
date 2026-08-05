@@ -45,6 +45,9 @@ export function TenantDetailPage() {
   const deleteMut = useMutation({
     mutationFn: () => api.del(`/tenants/${tenantId}`),
     onSuccess: () => {
+      // Invalidate the tenants list so the deleted tenant does not linger as a
+      // ghost row (which would 404 when clicked).
+      qc.invalidateQueries({ queryKey: ['tenants'] });
       show('Tenant deleted');
       navigate('/tenants');
     },
@@ -100,7 +103,11 @@ export function TenantDetailPage() {
         ))}
       </div>
 
-      <div>
+      {/* Key by tenant id so switching tenants without a full remount (e.g. via
+          dashboard links or editing the URL) resets all child state — otherwise
+          the DeployPanel's enrollment token and the Agents/Compliance selections
+          could carry over from the previously viewed tenant. */}
+      <div key={data.id}>
         {activeTab === 'agents' && <AgentsTab tenant={data} />}
         {activeTab === 'groups' && <GroupsTab tenant={data} />}
         {activeTab === 'policies' && <PoliciesTab tenant={data} />}

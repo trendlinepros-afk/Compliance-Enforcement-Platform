@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, ArrowUpCircle, Pause, Play, RotateCcw, Trash2, Terminal } from 'lucide-react';
+import { RefreshCw, ArrowUpCircle, Pause, Play, RotateCcw, Trash2, Terminal, Search, History, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Computer, CommandType, Tenant } from '../../lib/types';
 import { CompliancePill, ConfirmDialog, EmptyState, EnforcementBadge, ErrorBanner, Modal, OnlineBadge, Spinner } from '../../components/ui';
@@ -8,6 +8,9 @@ import { relativeTime } from '../../lib/format';
 import { useToast } from '../../lib/toast';
 import { DeployPanel } from './DeployPanel';
 import { EffectivePolicyModal } from './EffectivePolicyModal';
+import { CommandHistoryModal } from './CommandHistoryModal';
+
+type StatusFilter = 'all' | 'online' | 'offline' | 'paused' | 'noncompliant' | 'outdated';
 
 export function AgentsTab({ tenant }: { tenant: Tenant }) {
   const qc = useQueryClient();
@@ -17,12 +20,38 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
   const [rollbackTarget, setRollbackTarget] = useState<Computer | null>(null);
   const [bulkUninstall, setBulkUninstall] = useState(false);
   const [effectiveFor, setEffectiveFor] = useState<Computer | null>(null);
+  const [historyFor, setHistoryFor] = useState<Computer | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['computers', tenant.id],
     queryFn: () => api.get<Computer[]>(`/tenants/${tenant.id}/computers`),
     refetchInterval: 20_000,
   });
+
+  // Client-side search + status filter over the fetched fleet.
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    return data.filter((c) => {
+      if (q && !c.hostname.toLowerCase().includes(q) && !c.ipAddresses.some((ip) => ip.includes(q))) return false;
+      switch (statusFilter) {
+        case 'online':
+          return c.online;
+        case 'offline':
+          return !c.online;
+        case 'paused':
+          return c.enforcementPaused || c.tenantEnforcementPaused;
+        case 'noncompliant':
+          return c.compliance?.percent != null && c.compliance.percent < 100;
+        case 'outdated':
+          return !c.policyUpToDate && !!c.agentVersion;
+        default:
+          return true;
+      }
+    });
+  }, [data, search, statusFilter]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['computers', tenant.id] });
@@ -51,10 +80,13 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
     onError: (e) => show(e instanceof Error ? e.message : 'Failed', 'error'),
   });
 
-  const allSelected = useMemo(() => data && data.length > 0 && selected.size === data.length, [data, selected]);
+  // Select-all operates over the currently visible (filtered) rows.
+  const allSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
   const toggleAll = () => {
-    if (!data) return;
-    setSelected(allSelected ? new Set() : new Set(data.map((c) => c.id)));
+    const next = new Set(selected);
+    if (allSelected) filtered.forEach((c) => next.delete(c.id));
+    else filtered.forEach((c) => next.add(c.id));
+    setSelected(next);
   };
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -66,6 +98,31 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
     <div className="space-y-4">
       <DeployPanel tenant={tenant} />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1">
+          <Search size={14} className="absolute left-2.5 top-2.5 text-slate-500" />
+          <input
+            className="input pl-8"
+            placeholder="Search hostname or IP…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <select className="input w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
+          <option value="all">All statuses</option>
+          <option value="online">Online</option>
+          <option value="offline">Offline</option>
+          <option value="paused">Enforcement paused</option>
+          <option value="noncompliant">Noncompliant</option>
+          <option value="outdated">Policy stale</option>
+        </select>
+        {data && (
+          <span className="text-xs text-slate-500">
+            {filtered.length} of {data.length}
+          </span>
+        )}
+      </div>
+
       {selected.size > 0 && (
         <div className="card flex flex-wrap items-center gap-2 border-accent-700 bg-ink-850 px-3 py-2">
           <span className="text-sm text-slate-300">{selected.size} selected</span>
@@ -75,8 +132,17 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
           <button className="btn-secondary" onClick={() => bulkMut.mutate({ type: 'REAUDIT' })}>
             <RefreshCw size={14} /> Re-audit
           </button>
+          <button className="btn-secondary" onClick={() => bulkMut.mutate({ type: 'PAUSE_ENFORCEMENT' })}>
+            <Pause size={14} /> Pause
+          </button>
+          <button className="btn-secondary" onClick={() => bulkMut.mutate({ type: 'RESUME_ENFORCEMENT' })}>
+            <Play size={14} /> Resume
+          </button>
           <button className="btn-danger" onClick={() => setBulkUninstall(true)}>
             <Trash2 size={14} /> Uninstall
+          </button>
+          <button className="btn-ghost ml-auto text-slate-400" onClick={() => setSelected(new Set())}>
+            <X size={14} /> Clear
           </button>
         </div>
       )}
@@ -86,6 +152,9 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
       ) : error ? (
         <ErrorBanner error={error} />
       ) : data && data.length > 0 ? (
+        filtered.length === 0 ? (
+          <EmptyState>No agents match your search / filter.</EmptyState>
+        ) : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[1000px]">
             <thead className="border-b border-ink-800 bg-ink-850">
@@ -105,7 +174,7 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
               </tr>
             </thead>
             <tbody>
-              {data.map((c) => (
+              {filtered.map((c) => (
                 <tr key={c.id} className="border-b border-ink-850 last:border-0 hover:bg-ink-850/40">
                   <td className="td">
                     <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
@@ -163,6 +232,9 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
                       <IconBtn title="Rollback to snapshot" disabled={!c.latestSnapshot} onClick={() => setRollbackTarget(c)}>
                         <RotateCcw size={14} />
                       </IconBtn>
+                      <IconBtn title="Command history" onClick={() => setHistoryFor(c)}>
+                        <History size={14} />
+                      </IconBtn>
                       <IconBtn title="Uninstall" onClick={() => setUninstallTarget(c)}>
                         <Trash2 size={14} className="text-red-400" />
                       </IconBtn>
@@ -173,6 +245,7 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
             </tbody>
           </table>
         </div>
+        )
       ) : (
         <EmptyState>
           <Terminal className="mx-auto mb-2" size={20} /> No agents enrolled yet. Use the deploy panel above.
@@ -223,6 +296,7 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
       )}
 
       {effectiveFor && <EffectivePolicyModal computer={effectiveFor} onClose={() => setEffectiveFor(null)} />}
+      {historyFor && <CommandHistoryModal computer={historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   );
 }

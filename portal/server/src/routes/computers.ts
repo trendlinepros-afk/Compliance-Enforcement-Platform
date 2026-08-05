@@ -4,7 +4,7 @@ import { prisma } from '../db';
 import { ah, httpError } from '../lib/errors';
 import { requireUser } from '../lib/auth';
 import { config } from '../config';
-import { getComplianceSummaries, getEffectiveDocument } from '../services/computerPolicy';
+import { getComplianceSummaries, getEffectiveDocument, getEffectiveDocumentsForTenant } from '../services/computerPolicy';
 
 export const computersRouter = Router();
 computersRouter.use(requireUser);
@@ -27,19 +27,19 @@ computersRouter.get(
     const compliance = await getComplianceSummaries(computers.map((c) => c.id));
     const tenant = await prisma.tenant.findUnique({ where: { id: req.params.tenantId }, select: { enforcementPaused: true } });
 
-    // Effective policy names: resolve source policies per computer (cheap: reuse assignments).
-    const docs = await Promise.all(
-      computers.map(async (c) => {
-        try {
-          const doc = await getEffectiveDocument(c.id);
-          const names = [...new Set(doc.entries.map((e) => e.sourcePolicyName))];
-          return { id: c.id, policyNames: names, settingCount: doc.entries.length, policyHash: doc.policyHash };
-        } catch {
-          return { id: c.id, policyNames: [], settingCount: 0, policyHash: '' };
-        }
-      }),
+    // Resolve every computer's effective policy in one batch (constant queries)
+    // instead of N per-computer round-trips.
+    const docs = await getEffectiveDocumentsForTenant(req.params.tenantId);
+    const docById = new Map(
+      [...docs.entries()].map(([id, doc]) => [
+        id,
+        {
+          policyNames: [...new Set(doc.entries.map((e) => e.sourcePolicyName))],
+          settingCount: doc.entries.length,
+          policyHash: doc.policyHash,
+        },
+      ]),
     );
-    const docById = new Map(docs.map((d) => [d.id, d]));
 
     res.json(
       computers.map((c) => ({

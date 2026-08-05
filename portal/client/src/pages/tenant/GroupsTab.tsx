@@ -35,11 +35,13 @@ export function GroupsTab({ tenant }: { tenant: Tenant }) {
       invalidate();
       show('Group deleted');
     },
+    onError: (e) => show(e instanceof Error ? e.message : 'Failed', 'error'),
   });
 
   const removeMemberMut = useMutation({
     mutationFn: ({ groupId, computerId }: { groupId: string; computerId: string }) => api.del(`/groups/${groupId}/members/${computerId}`),
     onSuccess: invalidate,
+    onError: (e) => show(e instanceof Error ? e.message : 'Failed', 'error'),
   });
 
   return (

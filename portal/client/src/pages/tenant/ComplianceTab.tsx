@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Download } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { AuditResultRow, Computer, Tenant } from '../../lib/types';
 import { CompliancePill, EmptyState, ErrorBanner, Spinner } from '../../components/ui';
 import { MechanismBadge } from '../../components/SettingExplainer';
-import { displayValue, relativeTime } from '../../lib/format';
+import { displayValue, downloadCsv, relativeTime } from '../../lib/format';
 
 interface Rollup {
   avgCompliance: number | null;
@@ -35,6 +36,26 @@ export function ComplianceTab({ tenant }: { tenant: Tenant }) {
             <div className="text-xs text-slate-500">
               {rollupQ.data.computers.length} computers · sorted worst-first
             </div>
+            <button
+              className="btn-secondary ml-auto"
+              disabled={rollupQ.data.computers.length === 0}
+              onClick={() => {
+                const rows: (string | number | null)[][] = [
+                  ['Hostname', 'Online', 'Compliant', 'Total', 'Compliance %', 'Last checked'],
+                  ...rollupQ.data!.computers.map((c) => [
+                    c.hostname,
+                    c.online ? 'online' : 'offline',
+                    c.compliance?.compliant ?? 0,
+                    c.compliance?.total ?? 0,
+                    c.compliance?.percent ?? '',
+                    c.compliance?.lastCheckedAt ?? '',
+                  ]),
+                ];
+                downloadCsv(`compliance-${tenant.slug}-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+              }}
+            >
+              <Download size={14} /> Export CSV
+            </button>
           </div>
 
           <div className="card overflow-hidden">

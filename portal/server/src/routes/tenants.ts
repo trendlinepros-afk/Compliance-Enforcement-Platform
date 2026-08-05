@@ -87,6 +87,7 @@ const patchSchema = z.object({
 
 tenantsRouter.patch(
   '/:id',
+  requireAdmin,
   ah(async (req, res) => {
     const body = patchSchema.parse(req.body);
     const tenant = await prisma.tenant.update({ where: { id: req.params.id }, data: body }).catch(() => null);

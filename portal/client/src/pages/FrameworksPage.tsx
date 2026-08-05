@@ -46,7 +46,9 @@ export function FrameworksPage() {
         </div>
       ) : null}
 
-      {active && <FrameworkDetailView frameworkKey={active} onClose={() => setActive(null)} />}
+      {/* Key by framework so the internal control-search filter resets when
+          switching from one framework to another. */}
+      {active && <FrameworkDetailView key={active} frameworkKey={active} onClose={() => setActive(null)} />}
     </div>
   );
 }
