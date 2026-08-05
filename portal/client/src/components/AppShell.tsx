@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Building2, LayoutDashboard, ShieldCheck, Library, BadgeCheck, Package, Users, LogOut, Server } from 'lucide-react';
+import { Building2, LayoutDashboard, ShieldCheck, Library, BadgeCheck, Package, Users, LogOut, Server, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { useTheme } from '../lib/theme';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -14,6 +15,7 @@ const nav = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
 
   return (
@@ -60,6 +62,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mb-2 px-1 text-xs text-slate-400">
             {user?.username} · <span className="uppercase">{user?.role}</span>
           </div>
+          <button
+            className="btn-ghost w-full justify-start text-slate-400"
+            onClick={toggle}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
           <button
             className="btn-ghost w-full justify-start text-slate-400"
             onClick={async () => {
