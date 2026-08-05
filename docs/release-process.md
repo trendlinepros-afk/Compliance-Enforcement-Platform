@@ -18,22 +18,35 @@
 
 ### Cutting a release
 
+Either push a tag:
+
 ```bash
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
-Then in the portal: **Agent Releases → Register URL**, paste the asset URL and
-SHA-256 from the job summary, and mark it latest. From that point:
+…or run the **Agent Release** workflow manually (Actions tab → Run workflow, or
+`gh workflow run agent-release.yml -f version=1.2.0`). A manual run creates the
+`v<version>` tag and Release itself, so you don't need tag-push access.
 
-- the install one-liner and `/api/enroll/<token>/agent.msi` serve the new MSI,
+**The portal auto-registers the release — no manual step.** On boot, hourly,
+whenever the Agent Releases page is opened, and via the "Sync from GitHub"
+button, the portal pulls the newest MSI-bearing GitHub Release into its
+`agent_releases` table (source `GITHUB_URL`, marked latest) and reads the
+SHA-256 from the `.sha256` sidecar asset. From that point:
+
+- the install one-liner and `/api/enroll/<token>/agent.msi` serve the new MSI
+  (the portal proxies the public GitHub asset through its own URL),
 - the bulk-update flow and each agent's daily 12:00 ET check offer the update,
 - agents download it **through the portal**, verify the SHA-256 against the
   manifest, and self-update via the detached updater helper.
 
-Alternatively, **upload the MSI directly** in the portal (stored in Postgres
-`bytea`) instead of registering a GitHub URL — useful for air-gapped or private
-distributions.
+The sync targets this repo by default; override with `GITHUB_RELEASE_REPO`
+(`owner/repo`). A public repo needs no token; set `GITHUB_TOKEN` for a private
+repo or to raise the GitHub API rate limit.
+
+Alternatively, **register a URL or upload the MSI directly** in the portal
+(stored in Postgres `bytea`) — useful for air-gapped or private distributions.
 
 ## Local build
 

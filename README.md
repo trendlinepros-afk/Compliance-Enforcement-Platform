@@ -115,16 +115,22 @@ serving `client/dist` plus `/api`.
 
 ## Agent build & release flow
 
-Tag `v*` → GitHub Actions builds the self-contained MSI, computes its SHA-256,
-attaches it to a GitHub Release, and prints the version/URL/SHA-256 to register
-in the portal. See **[docs/release-process.md](docs/release-process.md)**.
+GitHub Actions builds the self-contained MSI on a Windows runner, computes its
+SHA-256, and publishes both as a **GitHub Release** — triggered either by
+pushing a `v*` tag or by running the **Agent Release** workflow manually (Actions
+tab → Run workflow, or the API) with a version.
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+git tag v1.0.0 && git push origin v1.0.0   # or: run the workflow manually
 ```
 
-Then **Agent Releases → Register URL** in the portal (or upload the MSI
-directly), and mark it latest.
+**The portal registers the release automatically** — it syncs the newest
+MSI-bearing GitHub Release into its Agent Releases on boot, hourly, when the page
+is opened, and via a "Sync from GitHub" button. No manual registration is
+needed; the deploy panel's install one-liner and download button immediately
+serve the new MSI (the portal proxies the public GitHub asset through its own
+URL). You can still register a URL or upload an MSI by hand. See
+**[docs/release-process.md](docs/release-process.md)**.
 
 ---
 
