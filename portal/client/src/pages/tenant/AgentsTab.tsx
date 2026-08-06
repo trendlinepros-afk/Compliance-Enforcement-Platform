@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ArrowUpCircle, Pause, Play, RotateCcw, Trash2, Terminal, Search, History, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Computer, CommandType, Tenant } from '../../lib/types';
-import { CompliancePill, ConfirmDialog, EmptyState, EnforcementBadge, ErrorBanner, Modal, OnlineBadge, Spinner } from '../../components/ui';
+import { CompliancePill, EmptyState, EnforcementBadge, ErrorBanner, Modal, OnlineBadge, Spinner } from '../../components/ui';
 import { relativeTime } from '../../lib/format';
 import { useToast } from '../../lib/toast';
 import { DeployPanel } from './DeployPanel';
@@ -210,7 +210,14 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
                     <CompliancePill percent={c.compliance?.percent ?? null} />
                   </td>
                   <td className="td">
-                    <EnforcementBadge paused={c.enforcementPaused} tenantPaused={c.tenantEnforcementPaused} />
+                    <div className="flex flex-wrap items-center gap-1">
+                      <EnforcementBadge paused={c.enforcementPaused} tenantPaused={c.tenantEnforcementPaused} />
+                      {c.groups.some((g) => g.name === 'Roll Back') && (
+                        <span className="badge bg-rose-900 text-rose-300" title="Reverted — quarantined in the Roll Back group">
+                          Rolled back
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="td">
                     <div className="flex items-center justify-end gap-1">
@@ -229,7 +236,7 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
                           <Pause size={14} />
                         </IconBtn>
                       )}
-                      <IconBtn title="Rollback to snapshot" disabled={!c.latestSnapshot} onClick={() => setRollbackTarget(c)}>
+                      <IconBtn title="Revert changes / roll back" onClick={() => setRollbackTarget(c)}>
                         <RotateCcw size={14} />
                       </IconBtn>
                       <IconBtn title="Command history" onClick={() => setHistoryFor(c)}>
@@ -253,23 +260,10 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
       )}
 
       {rollbackTarget && (
-        <ConfirmDialog
-          title="Rollback to snapshot"
-          danger
-          confirmLabel="Rollback & pause enforcement"
-          message={
-            <div className="space-y-2">
-              <p>
-                Restore <b>{rollbackTarget.hostname}</b> to the snapshot captured{' '}
-                <b>{rollbackTarget.latestSnapshot ? new Date(rollbackTarget.latestSnapshot.createdAt).toLocaleString() : ''}</b>.
-              </p>
-              <p className="text-amber-400">
-                Enforcement will be automatically paused on this machine so the drift loop does not immediately re-apply the policy.
-              </p>
-            </div>
-          }
+        <RevertModal
+          computer={rollbackTarget}
           onCancel={() => setRollbackTarget(null)}
-          onConfirm={() => {
+          onRevertAll={() => {
             cmdMut.mutate({ id: rollbackTarget.id, type: 'ROLLBACK' });
             setRollbackTarget(null);
           }}
@@ -306,6 +300,60 @@ function IconBtn({ children, title, onClick, disabled }: { children: React.React
     <button className="btn-ghost p-1" title={title} onClick={onClick} disabled={disabled}>
       {children}
     </button>
+  );
+}
+
+function RevertModal({
+  computer,
+  onCancel,
+  onRevertAll,
+}: {
+  computer: Computer;
+  onCancel: () => void;
+  onRevertAll: () => void;
+}) {
+  const snap = computer.latestSnapshot;
+  return (
+    <Modal title={`Revert changes on ${computer.hostname}`} onClose={onCancel}>
+      <div className="space-y-3">
+        <p className="text-sm text-slate-300">
+          If enforcement broke something on this machine, revert it here. Reverting moves it into this tenant&apos;s{' '}
+          <b className="text-slate-100">Roll Back</b> group and pauses enforcement, so it stops following the default policy until you
+          resume it.
+        </p>
+        <button
+          className="card w-full p-3 text-left enabled:hover:border-accent-600 disabled:opacity-50"
+          disabled={!snap}
+          onClick={onRevertAll}
+        >
+          <div className="font-medium text-slate-100">Revert all changes</div>
+          <div className="text-xs text-slate-400">
+            {snap ? (
+              <>
+                Restores the pre-enforcement snapshot from {new Date(snap.createdAt).toLocaleString()} (Group Policy, security policy,
+                audit policy, and the registry values it changed), runs gpupdate, and pauses enforcement.
+              </>
+            ) : (
+              <>No pre-enforcement snapshot has been captured for this machine yet, so a full revert isn&apos;t available.</>
+            )}
+          </div>
+        </button>
+        <div className="card w-full cursor-not-allowed p-3 text-left opacity-60">
+          <div className="flex items-center justify-between">
+            <div className="font-medium text-slate-100">Revert specific settings</div>
+            <span className="badge bg-ink-700 text-slate-400">Next agent update</span>
+          </div>
+          <div className="text-xs text-slate-400">
+            Pick individual settings to roll back while keeping the rest enforced. Ships in the next agent release.
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button className="btn-secondary" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

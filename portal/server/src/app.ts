@@ -16,6 +16,7 @@ import { releasesRouter } from './routes/releases';
 import { agentRouter } from './routes/agent';
 import { enrollRouter } from './routes/enroll';
 import { dashboardRouter } from './routes/dashboard';
+import { deploymentRouter } from './routes/deployment';
 
 export function createApp(): express.Express {
   const app = express();
@@ -45,6 +46,7 @@ export function createApp(): express.Express {
   app.use('/api', catalogRouter);
   app.use('/api', frameworksRouter);
   app.use('/api', releasesRouter);
+  app.use('/api', deploymentRouter);
   app.use('/api', dashboardRouter);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));

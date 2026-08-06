@@ -185,6 +185,34 @@ export interface SnapshotRow {
 
 export type CommandStatus = 'PENDING' | 'DELIVERED' | 'ACKED' | 'FAILED';
 
+export interface DeploymentComputerImpact {
+  computerId: string;
+  hostname: string;
+  currentValue: unknown;
+}
+
+export interface DeploymentSettingRow {
+  settingId: string;
+  key: string;
+  name: string;
+  category: string;
+  description: string;
+  riskNote: string;
+  mechanism: string;
+  requiredValue: unknown;
+  nonCompliantCount: number;
+  computers: DeploymentComputerImpact[];
+}
+
+export interface DeploymentPlan {
+  requireApproval: boolean;
+  totalComputers: number;
+  pendingComputers: number;
+  affectedComputers: number;
+  settings: DeploymentSettingRow[];
+  lastCheckedAt: string | null;
+}
+
 export interface CommandRow {
   id: string;
   type: CommandType;

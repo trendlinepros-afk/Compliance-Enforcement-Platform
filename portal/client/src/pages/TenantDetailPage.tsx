@@ -10,11 +10,12 @@ import { ConfirmDialog, ErrorBanner, Spinner } from '../components/ui';
 import { AgentsTab } from './tenant/AgentsTab';
 import { GroupsTab } from './tenant/GroupsTab';
 import { PoliciesTab } from './tenant/PoliciesTab';
+import { DeploymentTab } from './tenant/DeploymentTab';
 import { ComplianceTab } from './tenant/ComplianceTab';
 import { DriftTab } from './tenant/DriftTab';
 import { SnapshotsTab } from './tenant/SnapshotsTab';
 
-const TABS = ['agents', 'groups', 'policies', 'compliance', 'drift', 'snapshots'] as const;
+const TABS = ['agents', 'groups', 'policies', 'deployment', 'compliance', 'drift', 'snapshots'] as const;
 type Tab = (typeof TABS)[number];
 
 export function TenantDetailPage() {
@@ -111,6 +112,7 @@ export function TenantDetailPage() {
         {activeTab === 'agents' && <AgentsTab tenant={data} />}
         {activeTab === 'groups' && <GroupsTab tenant={data} />}
         {activeTab === 'policies' && <PoliciesTab tenant={data} />}
+        {activeTab === 'deployment' && <DeploymentTab tenant={data} />}
         {activeTab === 'compliance' && <ComplianceTab tenant={data} />}
         {activeTab === 'drift' && <DriftTab tenant={data} />}
         {activeTab === 'snapshots' && <SnapshotsTab tenant={data} />}

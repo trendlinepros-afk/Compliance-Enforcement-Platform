@@ -39,6 +39,9 @@ model Tenant {
   enrollToken       String   @unique
   // Tenant-wide enforcement kill switch: when true no agent in this tenant writes anything.
   enforcementPaused Boolean  @default(false)
+  // Staged deployment gate: when true, agents audit but do NOT write changes until
+  // an admin reviews the impact and deploys (per-computer approvedPolicyHash).
+  requireDeploymentApproval Boolean @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -75,6 +78,10 @@ model Computer {
   deviceTokenHash   String?        @unique
   // Policy hash last reported by the agent (used to detect stale policy).
   reportedPolicyHash String        @default("")
+  // Effective-policy hash an admin has approved for enforcement on this machine.
+  // While tenant.requireDeploymentApproval is on, enforcement is held until the
+  // current effective hash matches this (set by "Confirm & deploy").
+  approvedPolicyHash String        @default("")
   firstEnforcedAt   DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt

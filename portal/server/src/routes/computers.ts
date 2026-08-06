@@ -195,6 +195,34 @@ const commandSchema = z.object({
   payload: z.record(z.unknown()).optional(),
 });
 
+// A rolled-back machine no longer follows the tenant's default policy, so it is
+// pulled into a dedicated "Roll Back" group for visibility. The group carries no
+// assignments — it is a quarantine label; the enforcement stop is the pause.
+const ROLLBACK_GROUP = 'Roll Back';
+
+async function quarantineToRollbackGroup(tenantId: string, computerId: string): Promise<void> {
+  const group = await prisma.computerGroup.upsert({
+    where: { tenantId_name: { tenantId, name: ROLLBACK_GROUP } },
+    update: {},
+    create: {
+      tenantId,
+      name: ROLLBACK_GROUP,
+      description:
+        'Machines whose changes were rolled back. Enforcement is paused and they no longer follow the default policy until you resume them.',
+    },
+  });
+  await prisma.groupMember.upsert({
+    where: { groupId_computerId: { groupId: group.id, computerId } },
+    update: {},
+    create: { groupId: group.id, computerId },
+  });
+}
+
+async function releaseFromRollbackGroup(tenantId: string, computerId: string): Promise<void> {
+  const group = await prisma.computerGroup.findUnique({ where: { tenantId_name: { tenantId, name: ROLLBACK_GROUP } } });
+  if (group) await prisma.groupMember.deleteMany({ where: { groupId: group.id, computerId } });
+}
+
 async function enqueueCommand(
   computerId: string,
   type: z.infer<typeof commandSchema>['type'],
@@ -217,6 +245,10 @@ async function enqueueCommand(
     });
     if (!snapshot) throw httpError(400, 'No snapshot available for this computer');
     payload = { ...payload, snapshotId: snapshot.id, snapshotSha256: snapshot.sha256 };
+    // Quarantine now: pause enforcement (so nothing re-applies before/while the
+    // agent restores) and move the machine into the "Roll Back" group.
+    await prisma.computer.update({ where: { id: computerId }, data: { enforcementPaused: true } });
+    await quarantineToRollbackGroup(computer.tenantId, computerId);
   }
   // Pause/resume reflect immediately server-side; command informs the agent.
   if (type === 'PAUSE_ENFORCEMENT') {
@@ -224,6 +256,8 @@ async function enqueueCommand(
   }
   if (type === 'RESUME_ENFORCEMENT') {
     await prisma.computer.update({ where: { id: computerId }, data: { enforcementPaused: false } });
+    // Resuming un-quarantines: back to following the default policy.
+    await releaseFromRollbackGroup(computer.tenantId, computerId);
   }
   return prisma.command.create({
     data: { computerId, type, payload: payload as object | undefined, createdBy },

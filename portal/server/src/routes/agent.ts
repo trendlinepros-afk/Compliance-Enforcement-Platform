@@ -129,7 +129,7 @@ agentRouter.post(
         lastSeenAt: new Date(),
         reportedPolicyHash: body.policyHash,
       },
-      include: { tenant: { select: { enforcementPaused: true } } },
+      include: { tenant: { select: { enforcementPaused: true, requireDeploymentApproval: true } } },
     });
 
     const pending = await prisma.command.findMany({
@@ -144,11 +144,18 @@ agentRouter.post(
     }
 
     const doc = await getEffectiveDocument(computer.id);
+    // Staged deployment gate: hold enforcement until an admin approves the current
+    // effective policy for this machine. The agent still audits (reports
+    // compliance) while held — that data drives the Deployment review tab.
+    const deploymentHeld =
+      computer.tenant.requireDeploymentApproval &&
+      doc.entries.length > 0 &&
+      doc.policyHash !== computer.approvedPolicyHash;
     res.json({
       commands: pending.map((c) => ({ id: c.id, type: c.type, payload: c.payload ?? {} })),
       policyChanged: doc.policyHash !== body.policyHash,
       policyHash: doc.policyHash,
-      enforcementPaused: computer.enforcementPaused || computer.tenant.enforcementPaused,
+      enforcementPaused: computer.enforcementPaused || computer.tenant.enforcementPaused || deploymentHeld,
       heartbeatSeconds: config.heartbeatSeconds,
     });
   }),
