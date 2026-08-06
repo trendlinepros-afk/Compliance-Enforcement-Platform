@@ -98,6 +98,17 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
     <div className="space-y-4">
       <DeployPanel tenant={tenant} />
 
+      <div className="card flex flex-wrap items-center justify-between gap-2 p-3">
+        <div className="text-xs text-slate-400">
+          <b className="text-slate-200">Agent broken, or left files behind after removal?</b> The Agent Cleaner fully removes the
+          service, scheduled task, and every agent file from a machine (run it as admin) and reports exactly what it found, removed,
+          and any path it couldn&apos;t.
+        </div>
+        <a className="btn-secondary whitespace-nowrap" href="/api/tools/agent-cleaner.ps1" download title="Download a standalone PowerShell cleaner (no enrollment needed)">
+          <Trash2 size={14} /> Agent Cleaner
+        </a>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-500" />

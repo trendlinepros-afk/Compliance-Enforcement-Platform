@@ -10,6 +10,7 @@ import {
   installerDisplayName,
   installerFileSlug,
 } from '../lib/installerScripts';
+import { buildAgentCleanerPs1 } from '../lib/agentCleaner';
 
 /**
  * Public enrollment convenience endpoints used by the deploy panel:
@@ -28,6 +29,19 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Agent Cleaner: a standalone local-cleanup script (no tenant/token needed).
+// Fully removes agent artifacts from whatever machine runs it.
+enrollRouter.get(
+  '/tools/agent-cleaner.ps1',
+  limiter,
+  ah(async (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="CEP-Agent-Cleaner.ps1"');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buildAgentCleanerPs1());
+  }),
+);
 
 // --- Per-tenant installer scripts (token baked into the file) ---------------
 enrollRouter.get(

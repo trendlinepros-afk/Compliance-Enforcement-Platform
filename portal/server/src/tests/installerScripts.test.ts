@@ -21,7 +21,6 @@ describe('installerFileSlug', () => {
 describe('installerDisplayName', () => {
   it('strips characters unsafe for a .cmd echo/comment line', () => {
     expect(installerDisplayName('Demo1')).toBe('Demo1');
-    // shell metacharacters must not survive into an echo/title/REM line
     expect(installerDisplayName('A & B <corp> | "x" %y%')).not.toMatch(/[&<>|"%^]/);
     expect(installerDisplayName('   ')).toBe('this tenant');
   });
@@ -31,18 +30,28 @@ describe('buildInstallerCmd', () => {
   const cmd = buildInstallerCmd(URL, TOKEN, 'Demo1');
 
   it('bakes the server url and enrollment token into the file', () => {
-    expect(cmd).toContain(`set "SERVERURL=${URL}"`);
-    expect(cmd).toContain(`set "ENROLLTOKEN=${TOKEN}"`);
+    expect(cmd).toContain(`set "CEP_URL=${URL}"`);
+    expect(cmd).toContain(`set "CEP_TOKEN=${TOKEN}"`);
   });
 
-  it('installs with both properties so a double-click enrolls', () => {
-    expect(cmd).toContain('msiexec /i "%MSI%" /qn SERVERURL="%SERVERURL%" ENROLLTOKEN="%ENROLLTOKEN%"');
+  it('installs with both msiexec properties so a double-click enrolls', () => {
+    expect(cmd).toContain("Start-Process msiexec");
+    expect(cmd).toContain("('SERVERURL='+$u)");
+    expect(cmd).toContain("('ENROLLTOKEN='+$t)");
   });
 
   it('self-elevates and downloads the MSI through the portal', () => {
     expect(cmd).toContain('net session >nul 2>&1');
     expect(cmd).toContain('Start-Process -Verb RunAs');
-    expect(cmd).toContain('/api/enroll/%ENROLLTOKEN%/agent.msi');
+    expect(cmd).toContain("'/api/enroll/'+$t+'/agent.msi'");
+  });
+
+  it('shows a progress bar, reports completion, and auto-closes', () => {
+    expect(cmd).toContain('Write-Progress');
+    expect(cmd).toContain('Install complete');
+    expect(cmd).toContain('close in 5 seconds');
+    expect(cmd).toContain('timeout /t 5');
+    expect(cmd.trimEnd().endsWith('exit')).toBe(true);
   });
 
   it('uses Windows CRLF line endings', () => {
@@ -55,13 +64,20 @@ describe('buildInstallerPs1', () => {
   const ps1 = buildInstallerPs1(URL, TOKEN, 'Demo1');
 
   it('bakes the server url and enrollment token in', () => {
-    expect(ps1).toContain(`$ServerUrl   = '${URL}'`);
-    expect(ps1).toContain(`$EnrollToken = '${TOKEN}'`);
+    expect(ps1).toContain(`$env:CEP_URL   = '${URL}'`);
+    expect(ps1).toContain(`$env:CEP_TOKEN = '${TOKEN}'`);
   });
 
   it('self-elevates and installs with both msiexec properties', () => {
     expect(ps1).toContain('IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)');
-    expect(ps1).toContain('"SERVERURL=$ServerUrl", "ENROLLTOKEN=$EnrollToken"');
-    expect(ps1).toContain('$ServerUrl/api/enroll/$EnrollToken/agent.msi');
+    expect(ps1).toContain("('SERVERURL='+$u)");
+    expect(ps1).toContain("('ENROLLTOKEN='+$t)");
+    expect(ps1).toContain("'/api/enroll/'+$t+'/agent.msi'");
+  });
+
+  it('shows completion and closes its own window', () => {
+    expect(ps1).toContain('Write-Progress');
+    expect(ps1).toContain('Install complete');
+    expect(ps1).toContain('Stop-Process -Id $PID');
   });
 });

@@ -3,7 +3,8 @@
  * enrollment token are baked into the file so a double-click (or an RMM push as
  * SYSTEM) installs the agent already enrolled — no arguments to remember. The
  * MSI itself is fetched through the portal at run time, so the script stays
- * tiny and always pulls the current release.
+ * tiny and always pulls the current release. Each installer shows a progress
+ * bar, prints "Install complete", counts down, and closes its own window.
  */
 
 // Combining diacritical marks (U+0300–U+036F); written as an escape so the
@@ -23,7 +24,21 @@ export const installerFileSlug = (t: { slug?: string | null; name: string }): st
 export const installerDisplayName = (name: string): string =>
   name.replace(/[^\w .-]+/g, ' ').trim().slice(0, 60) || 'this tenant';
 
-/** A .cmd that self-elevates, downloads the MSI through the portal, and installs it enrolled. */
+// Shared PowerShell body: download the MSI (BITS for a real progress bar, iwr
+// fallback) then install it silently with a Write-Progress bar. Uses only
+// single quotes + $env so it can be embedded inside a .cmd `-Command "..."`.
+// $env:CEP_URL / $env:CEP_TOKEN are set by the caller.
+const PS_INSTALL_BODY =
+  "$ErrorActionPreference='Stop'; $u=$env:CEP_URL; $t=$env:CEP_TOKEN; " +
+  "$m=Join-Path $env:TEMP 'cep-agent.msi'; $src=$u+'/api/enroll/'+$t+'/agent.msi'; " +
+  "Write-Progress -Activity 'CEP Agent' -Status 'Downloading...' -PercentComplete 20; " +
+  "try { Import-Module BitsTransfer -ErrorAction Stop; Start-BitsTransfer -Source $src -Destination $m -DisplayName 'Downloading CEP agent' } " +
+  "catch { [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri $src -OutFile $m }; " +
+  "Write-Progress -Activity 'CEP Agent' -Status 'Installing...' -PercentComplete 70; " +
+  "Start-Process msiexec -ArgumentList '/i',$m,'/qn',('SERVERURL='+$u),('ENROLLTOKEN='+$t) -Wait; " +
+  "Write-Progress -Activity 'CEP Agent' -Completed";
+
+/** A .cmd that self-elevates, shows a progress bar, installs enrolled, then auto-closes. */
 export function buildInstallerCmd(serverUrl: string, token: string, name: string): string {
   return [
     '@echo off',
@@ -38,8 +53,8 @@ export function buildInstallerCmd(serverUrl: string, token: string, name: string
     ' REM  and approve the prompt) or push it through your RMM as SYSTEM.',
     'REM ============================================================',
     '',
-    `set "SERVERURL=${serverUrl}"`,
-    `set "ENROLLTOKEN=${token}"`,
+    `set "CEP_URL=${serverUrl}"`,
+    `set "CEP_TOKEN=${token}"`,
     '',
     'net session >nul 2>&1',
     'if %errorlevel% neq 0 (',
@@ -48,21 +63,12 @@ export function buildInstallerCmd(serverUrl: string, token: string, name: string
     '  exit /b',
     ')',
     '',
-    'set "MSI=%TEMP%\\cep-agent.msi"',
-    'echo Downloading the CEP agent from %SERVERURL% ...',
-    `powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { Invoke-WebRequest -UseBasicParsing -Uri '%SERVERURL%/api/enroll/%ENROLLTOKEN%/agent.msi' -OutFile '%MSI%' } catch { Write-Host $_; exit 1 }"`,
-    'if not exist "%MSI%" (',
-    '  echo.',
-    '  echo ERROR: could not download the agent. Check the server URL / token and retry.',
-    '  pause',
-    '  exit /b 1',
-    ')',
-    '',
-    `echo Installing and enrolling to ${name} ...`,
-    'msiexec /i "%MSI%" /qn SERVERURL="%SERVERURL%" ENROLLTOKEN="%ENROLLTOKEN%"',
+    `powershell -NoProfile -ExecutionPolicy Bypass -Command "${PS_INSTALL_BODY}"`,
     'echo.',
-    `echo Done. The machine will appear under ${name} in the portal shortly.`,
-    'timeout /t 6 >nul',
+    `echo Install complete. This machine will appear under ${name} in the portal shortly.`,
+    'echo This window will close in 5 seconds...',
+    'timeout /t 5 /nobreak >nul',
+    'exit',
     '',
   ].join('\r\n');
 }
@@ -73,8 +79,8 @@ export function buildInstallerPs1(serverUrl: string, token: string, name: string
     `# Compliance Enforcement Platform - agent installer for tenant "${name}"`,
     '# The server URL and this tenant enrollment token are baked in below, so',
     '# running this installs the agent already enrolled to this tenant.',
-    `$ServerUrl   = '${serverUrl}'`,
-    `$EnrollToken = '${token}'`,
+    `$env:CEP_URL   = '${serverUrl}'`,
+    `$env:CEP_TOKEN = '${token}'`,
     '',
     '$ErrorActionPreference = "Stop"',
     '$id = [Security.Principal.WindowsIdentity]::GetCurrent()',
@@ -84,14 +90,12 @@ export function buildInstallerPs1(serverUrl: string, token: string, name: string
     '  return',
     '}',
     '',
-    '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12',
-    '$msi = Join-Path $env:TEMP "cep-agent.msi"',
-    'Write-Host "Downloading the CEP agent from $ServerUrl ..."',
-    'Invoke-WebRequest -UseBasicParsing -Uri "$ServerUrl/api/enroll/$EnrollToken/agent.msi" -OutFile $msi',
-    `Write-Host "Installing and enrolling to ${name} ..."`,
-    '$p = Start-Process msiexec -ArgumentList "/i", "`"$msi`"", "/qn", "SERVERURL=$ServerUrl", "ENROLLTOKEN=$EnrollToken" -Wait -PassThru',
-    'Write-Host ("msiexec exit code: {0}" -f $p.ExitCode)',
-    `Write-Host "Done. The machine will appear under ${name} in the portal shortly."`,
+    `${PS_INSTALL_BODY}`,
+    "Write-Host ''",
+    `Write-Host 'Install complete. This machine will appear under ${name} in the portal shortly.' -ForegroundColor Green`,
+    "Write-Host 'This window will close in 5 seconds...' -ForegroundColor Yellow",
+    'Start-Sleep -Seconds 5',
+    'Stop-Process -Id $PID',
     '',
   ].join('\r\n');
 }
