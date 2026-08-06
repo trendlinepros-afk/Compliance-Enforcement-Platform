@@ -209,6 +209,7 @@ export interface DeploymentPlan {
   totalComputers: number;
   pendingComputers: number;
   affectedComputers: number;
+  auditedComputers: number;
   settings: DeploymentSettingRow[];
   lastCheckedAt: string | null;
 }

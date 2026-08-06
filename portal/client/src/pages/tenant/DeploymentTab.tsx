@@ -119,9 +119,11 @@ export function DeploymentTab({ tenant }: { tenant: Tenant }) {
         <EmptyState>
           {data.totalComputers === 0
             ? 'No machines enrolled yet.'
-            : data.lastCheckedAt
-              ? 'Every audited machine is already compliant — nothing to deploy.'
-              : 'No audit data yet. Agents report compliance within a few minutes of enrolling or a policy change.'}
+            : data.auditedComputers === 0
+              ? 'No audit data yet. Agents report compliance within a few minutes of enrolling, a policy change, or a re-audit.'
+              : data.pendingComputers > 0
+                ? `All ${data.auditedComputers} audited machine${data.auditedComputers === 1 ? ' is' : 's are'} already compliant — nothing to change. Deploy below to activate enforcement so future drift is auto-remediated.`
+                : `All ${data.auditedComputers} audited machine${data.auditedComputers === 1 ? ' is' : 's are'} compliant and enforcing. Nothing to deploy.`}
         </EmptyState>
       ) : (
         <div className="space-y-2">
@@ -139,23 +141,27 @@ export function DeploymentTab({ tenant }: { tenant: Tenant }) {
         </div>
       )}
 
-      {/* Sticky deploy bar */}
-      {!nothingToDeploy && (
+      {/* Sticky deploy bar — shown when there are changes to apply OR machines
+          that are audited-clean but still awaiting approval to enforce. */}
+      {(!nothingToDeploy || data.pendingComputers > 0) && (
         <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-ink-800 bg-ink-900/95 px-4 py-3 backdrop-blur sm:left-56">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div className="text-xs text-slate-400">
-              {data.requireApproval ? (
+              {data.settings.length > 0 ? (
                 <>
                   Applies <b className="text-slate-200">{data.settings.length}</b> change
                   {data.settings.length === 1 ? '' : 's'} across <b className="text-slate-200">{data.affectedComputers}</b> machine
                   {data.affectedComputers === 1 ? '' : 's'}. Agents enforce on their next check-in.
                 </>
               ) : (
-                <>Staging is off — changes already apply automatically. This re-approves and re-applies now.</>
+                <>
+                  <b className="text-slate-200">{data.pendingComputers}</b> machine{data.pendingComputers === 1 ? '' : 's'} audited
+                  clean but enforcement is held — deploy to activate ongoing enforcement (future drift auto-remediated).
+                </>
               )}
             </div>
             <button className="btn-primary whitespace-nowrap" disabled={deployMut.isPending} onClick={() => deployMut.mutate()}>
-              <Rocket size={15} /> Confirm &amp; deploy changes
+              <Rocket size={15} /> {data.settings.length > 0 ? 'Confirm & deploy changes' : 'Approve & activate enforcement'}
             </button>
           </div>
         </div>

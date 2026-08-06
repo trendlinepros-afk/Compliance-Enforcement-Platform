@@ -33,6 +33,7 @@ export interface DeploymentPlan {
   totalComputers: number;
   pendingComputers: number; // effective policy not yet approved (enforcement held)
   affectedComputers: number; // computers with >= 1 non-compliant setting
+  auditedComputers: number; // computers that have reported ANY audit result
   settings: DeploymentSettingRow[];
   lastCheckedAt: string | null;
 }
@@ -111,7 +112,7 @@ export async function getDeploymentPlan(tenantId: string): Promise<DeploymentPla
     select: { requireDeploymentApproval: true },
   });
 
-  const [computers, ncRows, docs] = await Promise.all([
+  const [computers, ncRows, auditedGroups, docs] = await Promise.all([
     prisma.computer.findMany({
       where: { tenantId, status: 'ACTIVE' },
       select: { id: true, approvedPolicyHash: true },
@@ -130,6 +131,9 @@ export async function getDeploymentPlan(tenantId: string): Promise<DeploymentPla
         },
       },
     }),
+    // Distinct computers that have reported ANY audit result (compliant or not),
+    // so the UI can tell "already compliant" from "no data yet".
+    prisma.auditResult.groupBy({ by: ['computerId'], where: { computer: { tenantId, status: 'ACTIVE' } } }),
     getEffectiveDocumentsForTenant(tenantId),
   ]);
 
@@ -151,6 +155,7 @@ export async function getDeploymentPlan(tenantId: string): Promise<DeploymentPla
     totalComputers: computers.length,
     pendingComputers,
     affectedComputers,
+    auditedComputers: auditedGroups.length,
     settings,
     lastCheckedAt,
   };
