@@ -14,10 +14,12 @@ export function DeployPanel({ tenant }: { tenant: Tenant }) {
   const [token, setToken] = useState(tenant.enrollToken);
 
   const publicUrl = tenant.publicUrl;
-  // Downloads the MSI with a progress bar (BITS, iwr fallback), installs enrolled,
-  // prints "Install complete", counts down 5s, then closes the window it ran in
-  // (the parent shell if launched from one, else itself — never explorer).
-  const oneLiner = `powershell -ep bypass -c "$ErrorActionPreference='Stop'; $u='${publicUrl}'; $t='${token}'; $m=Join-Path $env:TEMP 'cep-agent.msi'; $src=$u+'/api/enroll/'+$t+'/agent.msi'; Write-Progress -Activity 'CEP Agent' -Status 'Downloading...' -PercentComplete 20; try { Import-Module BitsTransfer -EA Stop; Start-BitsTransfer -Source $src -Destination $m -DisplayName 'Downloading CEP agent' } catch { [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri $src -OutFile $m }; Write-Progress -Activity 'CEP Agent' -Status 'Installing...' -PercentComplete 70; Start-Process msiexec -ArgumentList '/i',$m,'/qn',('SERVERURL='+$u),('ENROLLTOKEN='+$t) -Wait; Write-Progress -Activity 'CEP Agent' -Completed; Write-Host 'Install complete.' -ForegroundColor Green; Write-Host 'This window will close in 5 seconds...' -ForegroundColor Yellow; Start-Sleep 5; $pp=(gcim Win32_Process -Filter ('ProcessId='+$PID)).ParentProcessId; $pn=(gcim Win32_Process -Filter ('ProcessId='+$pp)).Name; if($pn -match 'powershell|pwsh|cmd|WindowsTerminal'){Stop-Process -Id $pp -Force}else{Stop-Process -Id $PID -Force}"`;
+  // Variable-free bootstrapper: downloads the real installer script (which has
+  // the token baked in and does the progress bar / install / auto-close) and
+  // launches it in its own window. Deliberately uses NO PowerShell variables so
+  // it survives being pasted into an existing PowerShell prompt (which would
+  // otherwise expand a self-contained script's $variables to empty).
+  const oneLiner = `powershell -ep bypass -c "iwr ${publicUrl}/api/enroll/${token}/install.ps1 -OutFile C:\\Windows\\Temp\\cep-install.ps1 -UseBasicParsing; Start-Process powershell -ArgumentList '-ExecutionPolicy','Bypass','-File','C:\\Windows\\Temp\\cep-install.ps1'"`;
 
   const regenMut = useMutation({
     mutationFn: () => api.post<{ enrollToken: string }>(`/tenants/${tenant.id}/regenerate-token`),
