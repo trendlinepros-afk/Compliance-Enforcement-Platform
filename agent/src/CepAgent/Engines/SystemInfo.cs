@@ -17,14 +17,14 @@ public static class SystemInfo
         foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (ni.OperationalStatus != OperationalStatus.Up) continue;
-            if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+            if (ni.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
+            // Skip Tailscale / VPN / hypervisor adapters so we report the real LAN IP.
+            if (SystemInfoLogic.IsVirtualAdapter(ni.Name, ni.Description)) continue;
             foreach (var ua in ni.GetIPProperties().UnicastAddresses)
             {
-                if (ua.Address.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    var s = ua.Address.ToString();
-                    if (!list.Contains(s)) list.Add(s);
-                }
+                if (!SystemInfoLogic.IsReportableIPv4(ua.Address)) continue;
+                var s = ua.Address.ToString();
+                if (!list.Contains(s)) list.Add(s);
             }
         }
         return list;
@@ -46,6 +46,9 @@ public static class SystemInfo
                 build = ubr != null ? $"{currentBuild}.{ubr}" : currentBuild;
                 var displayVersion = key.GetValue("DisplayVersion")?.ToString();
                 version = displayVersion ?? key.GetValue("ReleaseId")?.ToString() ?? version;
+                // Win11 still reports ProductName as "Windows 10 ..."; correct it by build.
+                if (int.TryParse(currentBuild, out var cb))
+                    name = SystemInfoLogic.NormalizeWindowsName(name, cb);
             }
         }
         catch { /* fall back to Environment.OSVersion */ }

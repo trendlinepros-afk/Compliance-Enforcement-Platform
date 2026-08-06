@@ -26,6 +26,7 @@
     <Compile Include="..\..\src\CepAgent\Parsers\AuditCsv.cs" Link="Parsers\AuditCsv.cs" />
     <Compile Include="..\..\src\CepAgent\Engines\ValueCompare.cs" Link="Engines\ValueCompare.cs" />
     <Compile Include="..\..\src\CepAgent\Engines\UpdateSchedule.cs" Link="Engines\UpdateSchedule.cs" />
+    <Compile Include="..\..\src\CepAgent\Engines\SystemInfoLogic.cs" Link="Engines\SystemInfoLogic.cs" />
   </ItemGroup>
 
 </Project>
