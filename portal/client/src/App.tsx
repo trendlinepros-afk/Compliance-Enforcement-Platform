@@ -6,6 +6,7 @@ import { AppShell } from './components/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { TenantsPage } from './pages/TenantsPage';
 import { TenantDetailPage } from './pages/TenantDetailPage';
+import { ComputerDetailPage } from './pages/ComputerDetailPage';
 import { GlobalPoliciesPage } from './pages/GlobalPoliciesPage';
 import { PolicyEditorPage } from './pages/PolicyEditorPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -33,6 +34,7 @@ export function App() {
         <Route path="/tenants" element={<TenantsPage />} />
         <Route path="/tenants/:tenantId" element={<TenantDetailPage />} />
         <Route path="/tenants/:tenantId/:tab" element={<TenantDetailPage />} />
+        <Route path="/computers/:computerId" element={<ComputerDetailPage />} />
         <Route path="/policies" element={<GlobalPoliciesPage />} />
         <Route path="/policies/:policyId" element={<PolicyEditorPage />} />
         <Route path="/catalog" element={<CatalogPage />} />

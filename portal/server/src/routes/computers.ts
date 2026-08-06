@@ -72,12 +72,27 @@ computersRouter.get(
     const c = await prisma.computer.findUnique({
       where: { id: req.params.id },
       include: {
-        tenant: { select: { id: true, name: true, enforcementPaused: true } },
+        tenant: { select: { id: true, name: true, enforcementPaused: true, requireDeploymentApproval: true } },
         groupMemberships: { include: { group: { select: { id: true, name: true } } } },
       },
     });
     if (!c) throw httpError(404, 'Computer not found');
-    const compliance = await getComplianceSummaries([c.id]);
+    const [compliance, doc] = await Promise.all([getComplianceSummaries([c.id]), getEffectiveDocument(c.id)]);
+
+    const rolledBack = c.groupMemberships.some((m) => m.group.name === 'Roll Back');
+    const deploymentHeld =
+      c.tenant.requireDeploymentApproval && doc.entries.length > 0 && doc.policyHash !== c.approvedPolicyHash;
+    // Single, human-meaningful enforcement state for the header badge.
+    const enforcementState = rolledBack
+      ? 'ROLLED_BACK'
+      : c.tenant.enforcementPaused
+        ? 'TENANT_PAUSED'
+        : c.enforcementPaused
+          ? 'PAUSED'
+          : deploymentHeld
+            ? 'PENDING_DEPLOYMENT'
+            : 'ACTIVE';
+
     res.json({
       id: c.id,
       tenant: c.tenant,
@@ -91,11 +106,18 @@ computersRouter.get(
       online: isOnline(c.lastSeenAt),
       status: c.status,
       enforcementPaused: c.enforcementPaused,
+      enforcementState,
       reportedPolicyHash: c.reportedPolicyHash,
+      policyUpToDate: c.reportedPolicyHash !== '' && c.reportedPolicyHash === doc.policyHash,
+      effectiveSettingCount: doc.entries.length,
+      effectivePolicyNames: [...new Set(doc.entries.map((e) => e.sourcePolicyName))],
       firstEnforcedAt: c.firstEnforcedAt,
       createdAt: c.createdAt,
       groups: c.groupMemberships.map((m) => m.group),
       compliance: compliance.get(c.id) ?? null,
+      metrics: c.metrics ?? null,
+      metricsAt: c.metricsAt,
+      latestSnapshotId: null,
     });
   }),
 );

@@ -140,6 +140,7 @@ public sealed class AgentWorker : BackgroundService
             AgentVersion = AgentInfo.Version,
             EnforcementPaused = _state.EnforcementPaused,
             PolicyHash = _state.PolicyHash,
+            Metrics = SafeCollectMetrics(),
         };
         var response = await _portal.HeartbeatAsync(hb, ct);
         if (response == null) return;
@@ -368,6 +369,13 @@ public sealed class AgentWorker : BackgroundService
             CreateNoWindow = true,
         });
         _log.Info("uninstall: detached uninstaller launched");
+    }
+
+    // Metrics are best-effort telemetry — never let a probe failure break the heartbeat.
+    private CepAgent.Models.MetricsDto? SafeCollectMetrics()
+    {
+        try { return SystemMetrics.Collect(); }
+        catch (Exception ex) { _log.Warn($"metrics collection failed: {ex.Message}"); return null; }
     }
 
     private EffectivePolicyDocument? LoadCachedPolicy()

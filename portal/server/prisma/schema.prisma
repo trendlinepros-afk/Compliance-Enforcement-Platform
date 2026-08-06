@@ -82,6 +82,11 @@ model Computer {
   // While tenant.requireDeploymentApproval is on, enforcement is held until the
   // current effective hash matches this (set by "Confirm & deploy").
   approvedPolicyHash String        @default("")
+  // Latest hardware/system metrics reported by the agent (cpu, ram, disks,
+  // uptime) as a JSON blob, plus when they were collected. Null until an agent
+  // that reports metrics checks in.
+  metrics           Json?
+  metricsAt         DateTime?
   firstEnforcedAt   DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt

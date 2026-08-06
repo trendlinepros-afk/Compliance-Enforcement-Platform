@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ArrowUpCircle, Pause, Play, RotateCcw, Trash2, Terminal, Search, History, X } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -191,8 +192,12 @@ export function AgentsTab({ tenant }: { tenant: Tenant }) {
                     <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
                   </td>
                   <td className="td">
-                    <div className="font-medium text-slate-100">{c.hostname}</div>
-                    <OnlineBadge online={c.online} />
+                    <Link to={`/computers/${c.id}`} className="link font-medium">
+                      {c.hostname}
+                    </Link>
+                    <div>
+                      <OnlineBadge online={c.online} />
+                    </div>
                   </td>
                   <td className="td font-mono text-xs text-slate-400">{c.ipAddresses.join(', ') || '—'}</td>
                   <td className="td text-xs text-slate-400">

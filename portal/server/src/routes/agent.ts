@@ -100,6 +100,20 @@ agentRouter.post(
 // Heartbeat
 // ---------------------------------------------------------------------------
 
+const metricsSchema = z
+  .object({
+    cpuPercent: z.number().min(0).max(100).optional(),
+    cpuCores: z.number().int().min(0).max(4096).optional(),
+    memTotalBytes: z.number().min(0).optional(),
+    memUsedBytes: z.number().min(0).optional(),
+    uptimeSeconds: z.number().min(0).optional(),
+    disks: z
+      .array(z.object({ name: z.string().max(64), totalBytes: z.number().min(0), freeBytes: z.number().min(0) }))
+      .max(64)
+      .optional(),
+  })
+  .optional();
+
 const heartbeatSchema = z.object({
   hostname: z.string().min(1).max(255),
   ipAddresses: z.array(z.string().max(45)).max(32).default([]),
@@ -109,6 +123,7 @@ const heartbeatSchema = z.object({
   agentVersion: z.string().max(40).default(''),
   enforcementPaused: z.boolean().default(false),
   policyHash: z.string().max(80).default(''),
+  metrics: metricsSchema,
 });
 
 agentRouter.post(
@@ -128,6 +143,7 @@ agentRouter.post(
         agentVersion: body.agentVersion,
         lastSeenAt: new Date(),
         reportedPolicyHash: body.policyHash,
+        ...(body.metrics ? { metrics: body.metrics as Prisma.InputJsonValue, metricsAt: new Date() } : {}),
       },
       include: { tenant: { select: { enforcementPaused: true, requireDeploymentApproval: true } } },
     });

@@ -32,6 +32,24 @@ public sealed class HeartbeatRequest
     [JsonPropertyName("agentVersion")] public string AgentVersion { get; set; } = "";
     [JsonPropertyName("enforcementPaused")] public bool EnforcementPaused { get; set; }
     [JsonPropertyName("policyHash")] public string PolicyHash { get; set; } = "";
+    [JsonPropertyName("metrics")] public MetricsDto? Metrics { get; set; }
+}
+
+public sealed class MetricsDto
+{
+    [JsonPropertyName("cpuPercent")] public double CpuPercent { get; set; }
+    [JsonPropertyName("cpuCores")] public int CpuCores { get; set; }
+    [JsonPropertyName("memTotalBytes")] public long MemTotalBytes { get; set; }
+    [JsonPropertyName("memUsedBytes")] public long MemUsedBytes { get; set; }
+    [JsonPropertyName("uptimeSeconds")] public long UptimeSeconds { get; set; }
+    [JsonPropertyName("disks")] public List<DiskDto> Disks { get; set; } = new();
+}
+
+public sealed class DiskDto
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("totalBytes")] public long TotalBytes { get; set; }
+    [JsonPropertyName("freeBytes")] public long FreeBytes { get; set; }
 }
 
 public sealed class CommandDto
